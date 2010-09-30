@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
+
 #include "misc.hpp"
 #include "btree_node.hpp"
 

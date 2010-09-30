@@ -1,5 +1,6 @@
 #ifndef BTREE_NODE_HPP
 #define BTREE_NODE_HPP
+#include <stdint.h>
 
 #include "storage.hpp"
 #include "btree.hpp"

@@ -2,6 +2,7 @@
 #define MISC_H
 
 #include <sys/types.h>
+#include <stdint.h>
 #include <string.h>
 
 off_t searchInterval(void *arr, size_t itemSize, size_t itemsCount, void *needle);

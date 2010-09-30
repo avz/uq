@@ -1,6 +1,7 @@
 #ifndef BTREE_HPP
 #define BTREE_HPP
 #include <sys/types.h>
+#include <stdint.h>
 #include "btree_node.hpp"
 
 class UniqueBTreeNode;

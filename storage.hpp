@@ -1,6 +1,6 @@
 #ifndef STORAGE_HPP
 #define STORAGE_HPP
-#include <sys/types.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 class Block {
