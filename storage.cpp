@@ -19,7 +19,7 @@ BlockStorageSuperblock::BlockStorageSuperblock(void *ptr)
 /* -- */
 
 BlockStorage::BlockStorage(const char *filename)
-	:fd(-1), mmapedLen(2*1024*1024*1024l), superblock(NULL)
+	:fd(-1), mmapedLen(1*1024*1024*1024), superblock(NULL)
 {
 	this->filename = new char[strlen(filename)+1];
 	strcpy(this->filename, filename);
@@ -100,7 +100,7 @@ void BlockStorage::_extend(size_t newSize) {
 }
 
 void BlockStorage::_doMmap() {
-	this->map = mmap(NULL, this->mmapedLen, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_NOCORE/* | MAP_NOSYNC*/, fd, 0);
+	this->map = mmap(NULL, this->mmapedLen, PROT_READ | PROT_WRITE, MAP_SHARED/* | MAP_NOCORE*//* | MAP_NOSYNC*/, fd, 0);
 	if(this->map == MAP_FAILED) {
 		perror("mmap");
 		exit(errno);
