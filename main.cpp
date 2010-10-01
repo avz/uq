@@ -61,6 +61,8 @@ int main(int argc, char *argv[]) {
 	for(unsigned int i=0; i<1400; i++) {
 		tree.add(MD5((unsigned char *)&i, sizeof(i), NULL));
 	}*/
+	setlinebuf(stdin);
+	setlinebuf(stdout);
 
 	while(fgets(line, 1024, stdin)) {
 		if(tree.add(MD5((unsigned char *)line, strlen(line), NULL)))
