@@ -1,6 +1,6 @@
 CC=g++
 LD=$(CC)
-CFLAGS= -c -O2 -Wall -I/usr/local/include
+CFLAGS= -c -O2 -Wall -I/usr/local/include -g
 LDFLAGS= -L/usr/local/lib
 LIBS=-lssl
 

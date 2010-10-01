@@ -26,6 +26,8 @@ BlockStorage::BlockStorage(const char *filename)
 }
 
 BlockStorage::~BlockStorage() {
+	delete[] this->filename;
+
 	if(this->map)
 		munmap(this->map, this->mmapedLen);
 
@@ -100,7 +102,7 @@ void BlockStorage::_extend(size_t newSize) {
 }
 
 void BlockStorage::_doMmap() {
-	this->map = mmap(NULL, this->mmapedLen, PROT_READ | PROT_WRITE, MAP_SHARED/* | MAP_NOCORE*//* | MAP_NOSYNC*/, fd, 0);
+	this->map = mmap(NULL, this->mmapedLen, PROT_READ | PROT_WRITE, MAP_SHARED/* | MAP_NOCORE*/ /*| MAP_NOSYNC*/, fd, 0);
 	if(this->map == MAP_FAILED) {
 		perror("mmap");
 		exit(errno);

@@ -24,9 +24,9 @@ public:
 	uint32_t keySize;
 	uint32_t blockSize;
 	UniqueBTree(const char *filename);
-// 	~UniqueBTree();
+	~UniqueBTree();
 
-	void create();
+	void create(size_t blockSize);
 	void load();
 	void reload();
 	bool add(void *key);

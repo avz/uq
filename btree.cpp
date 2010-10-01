@@ -21,8 +21,16 @@ UniqueBTree::UniqueBTree(const char *filename)
 {
 }
 
-void UniqueBTree::create() {
-	this->storage.create(4096*4);
+UniqueBTree::~UniqueBTree() {
+	if(superblock)
+		delete superblock;
+
+	if(root)
+		delete root;
+}
+
+void UniqueBTree::create(size_t blockSize) {
+	this->storage.create(blockSize);
 
 	Block sb = this->storage.allocate();
 	this->root = new UniqueBTreeNode(this, this->storage.allocate());
@@ -59,7 +67,7 @@ void UniqueBTree::reload() {
 
 bool UniqueBTree::add(void *key) {
 	this->keysAddedInCurrentSession++;
-	if(this->keysAddedInCurrentSession > 2000000) {
+	if(this->keysAddedInCurrentSession > 1000000) {
 		this->remap();
 		this->keysAddedInCurrentSession = 0;
 	}
@@ -75,8 +83,7 @@ bool UniqueBTree::add(void *key) {
 			this->root->split(&newNode, newKey);
 			newRoot->_appendKey(newKey);
 			newRoot->numKeys = 1;
-
-			newRoot->setIsLeaf(false);
+			newRoot->isLeaf = false;
 
 			newRoot->childs[0] = this->root->blockId;
 			newRoot->childs[1] = newNode.blockId;
