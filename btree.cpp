@@ -14,9 +14,9 @@ UniqueBTreeSuperblock::UniqueBTreeSuperblock(void *ptr)
 
 
 UniqueBTree::UniqueBTree(const char *filename)
-	:root(NULL),
+	:BlockStorage(filename),
+	root(NULL),
 	keysAddedInCurrentSession(0),
-	storage(filename),
 	superblock(NULL)
 {
 }
@@ -30,23 +30,11 @@ UniqueBTree::~UniqueBTree() {
 }
 
 void UniqueBTree::create(size_t blockSize) {
-	this->storage.create(blockSize);
-
-	Block sb = this->storage.allocate();
-	this->root = new UniqueBTreeNode(this, this->storage.allocate());
-	this->root->isLeaf = 1;
-	this->root->numKeys = 0;
-
-	this->superblock = new UniqueBTreeSuperblock(sb.ptr);
-	this->superblock->keySize = 8;
-	this->superblock->rootNodeId = root->blockId;
-
-	this->blockSize = this->storage.superblock->blockSize;
-	this->keySize = this->superblock->keySize;
+	BlockStorage::create(blockSize);
 }
 
 void UniqueBTree::load() {
-	this->storage.load();
+	BlockStorage::load();
 	this->reload();
 }
 
@@ -54,30 +42,31 @@ void UniqueBTree::reload() {
 	if(this->superblock)
 		delete this->superblock;
 
-	this->superblock = new UniqueBTreeSuperblock(this->storage.get(1).ptr);
+	this->superblock = new UniqueBTreeSuperblock(this->get(1).ptr);
 
-	this->blockSize = this->storage.superblock->blockSize;
+	this->blockSize = BlockStorage::superblock->blockSize;
 	this->keySize = this->superblock->keySize;
 
 	if(this->root)
 		delete this->root;
 
-	this->root = new UniqueBTreeNode(this, this->storage.get(this->superblock->rootNodeId));
+	this->root = new UniqueBTreeNode(this, this->get(this->superblock->rootNodeId));
 }
 
 bool UniqueBTree::add(void *key) {
 	this->keysAddedInCurrentSession++;
-	if(this->keysAddedInCurrentSession > 1000000) {
+	if(this->keysAddedInCurrentSession > 1000000 || this->needRemap) {
 		this->remap();
 		this->keysAddedInCurrentSession = 0;
 	}
-
+// fprintf(stderr, "root size: %u\n", this->root->numKeys);
+// fprintf(stderr, "key size: %u\n", this->keySize);
 	do {
 		try {
 			return this->root->add(key);
 		} catch(UniqueBTreeNode_NeedSplit e) {
-			UniqueBTreeNode *newRoot = new UniqueBTreeNode(this, this->storage.allocate());
-			UniqueBTreeNode newNode(this, this->storage.allocate());
+			UniqueBTreeNode *newRoot = new UniqueBTreeNode(this, this->allocate());
+			UniqueBTreeNode newNode(this, this->allocate());
 			char newKey[this->keySize];
 
 			this->root->split(&newNode, newKey);
@@ -97,6 +86,25 @@ bool UniqueBTree::add(void *key) {
 
 void UniqueBTree::remap() {
 // 	fprintf(stderr, "Remmaping\n");
-	this->storage.flush();
-	this->storage.remap();
+	this->flush();
+	BlockStorage::remap();
+}
+
+
+void UniqueBTree::onRemap() {
+	if(!this->superblock) { // creating
+		Block sb = this->allocate();
+		this->root = new UniqueBTreeNode(this, this->allocate());
+		this->root->isLeaf = 1;
+		this->root->numKeys = 0;
+
+		this->superblock = new UniqueBTreeSuperblock(sb.ptr);
+		this->superblock->keySize = 8;
+		this->superblock->rootNodeId = root->blockId;
+
+		this->blockSize = BlockStorage::superblock->blockSize;
+		this->keySize = this->superblock->keySize;
+	} else { // loading and remapping
+		this->reload();
+	}
 }

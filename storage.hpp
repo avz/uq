@@ -21,14 +21,18 @@ public:
 };
 
 class BlockStorage {
+protected:
 	int fd;
 	void *map;
-	size_t mmapedLen;
+	size_t mapSize;
 
 	char *filename;
 
-	void _doMmap();
-	void _extend(size_t newSize);
+	void _extendFile(size_t newSize);
+	off_t _fileSize();
+
+	bool needRemap;
+
 public:
 	BlockStorageSuperblock *superblock;
 	BlockStorage(const char *filename);
@@ -37,7 +41,12 @@ public:
 	void create(size_t blockSize);
 	void load();
 	void flush();
+	void mmap(size_t mapSize);
+	void unmap();
 	void remap();
+
+	virtual void onRemap() = 0;
+
 	Block allocate();
 	Block get(uint32_t id);
 };

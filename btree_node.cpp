@@ -35,7 +35,7 @@ void UniqueBTreeNode::split(UniqueBTreeNode *right, void *key) {
 
 bool UniqueBTreeNode::add(void *key) {
 	off_t t;
-
+// fprintf(stderr, "max keys: %u\n", this->maxKeys());
 	if(this->isLeaf) {
 		if(this->numKeys >= this->maxKeys()) {
 			throw UniqueBTreeNode_NeedSplit();
@@ -56,7 +56,7 @@ bool UniqueBTreeNode::add(void *key) {
 			t = searchInterval(this->keys, this->tree->keySize, this->numKeys, key);
 			if(t == -1)
 				return false;
-			UniqueBTreeNode n(this->tree, this->tree->storage.get(this->childs[t]));
+			UniqueBTreeNode n(this->tree, this->tree->get(this->childs[t]));
 
 			try {
 				return n.add(key);
@@ -64,7 +64,7 @@ bool UniqueBTreeNode::add(void *key) {
 				if(this->numKeys >= this->maxKeys())
 					throw UniqueBTreeNode_NeedSplit();
 
-				UniqueBTreeNode right(this->tree, this->tree->storage.allocate());
+				UniqueBTreeNode right(this->tree, this->tree->allocate());
 				char newKey[this->tree->keySize];
 				n.split(&right, newKey);
 

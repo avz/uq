@@ -15,11 +15,10 @@ public:
 	UniqueBTreeSuperblock(void *ptr);
 };
 
-class UniqueBTree {
+class UniqueBTree: public BlockStorage {
 	UniqueBTreeNode *root;
 	unsigned int keysAddedInCurrentSession;
 public:
-	BlockStorage storage;
 	UniqueBTreeSuperblock *superblock;
 	uint32_t keySize;
 	uint32_t blockSize;
@@ -32,6 +31,8 @@ public:
 	bool add(void *key);
 
 	void remap();
+
+	void onRemap();
 };
 
 #endif

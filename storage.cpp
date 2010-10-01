@@ -1,4 +1,5 @@
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -19,7 +20,7 @@ BlockStorageSuperblock::BlockStorageSuperblock(void *ptr)
 /* -- */
 
 BlockStorage::BlockStorage(const char *filename)
-	:fd(-1), mmapedLen(1*1024*1024*1024), superblock(NULL)
+	:fd(-1), map(NULL), needRemap(false), superblock(NULL)
 {
 	this->filename = new char[strlen(filename)+1];
 	strcpy(this->filename, filename);
@@ -28,10 +29,7 @@ BlockStorage::BlockStorage(const char *filename)
 BlockStorage::~BlockStorage() {
 	delete[] this->filename;
 
-	if(this->map)
-		munmap(this->map, this->mmapedLen);
-
-	this->map = NULL;
+	this->unmap();
 
 	if(this->fd >= 0)
 		close(this->fd);
@@ -50,12 +48,14 @@ void BlockStorage::create(size_t blockSize) {
 		exit(errno);
 	}
 
-	this->_doMmap();
-	this->_extend(blockSize);
+	this->_extendFile(blockSize);
+	this->mmap(1024);
 
 	this->superblock = new BlockStorageSuperblock(this->map);
 	this->superblock->blockSize = blockSize;
 	this->superblock->blocksCount = 1;
+
+	this->remap();
 }
 
 void BlockStorage::load() {
@@ -64,14 +64,16 @@ void BlockStorage::load() {
 		perror(this->filename);
 		exit(errno);
 	}
-	this->_doMmap();
 
-	this->superblock = new BlockStorageSuperblock(this->map);
+	this->remap();
 }
 
 Block BlockStorage::allocate() {
 	Block b;
-	this->_extend((this->superblock->blocksCount + 1) * this->superblock->blockSize);
+	this->_extendFile((this->superblock->blocksCount + 1) * this->superblock->blockSize);
+
+	if((this->superblock->blocksCount + 5) * this->superblock->blockSize > this->mapSize)
+		this->needRemap = true;
 
 	b.id = this->superblock->blocksCount;
 	b.ptr = (char *)this->map + b.id * this->superblock->blockSize;
@@ -94,19 +96,21 @@ Block BlockStorage::get(uint32_t id) {
 	return b;
 }
 
-void BlockStorage::_extend(size_t newSize) {
+void BlockStorage::_extendFile(size_t newSize) {
 	if(ftruncate(this->fd, newSize) < 0) {
 		perror("truncate");
 		exit(errno);
 	}
 }
 
-void BlockStorage::_doMmap() {
-	this->map = mmap(NULL, this->mmapedLen, PROT_READ | PROT_WRITE, MAP_SHARED/* | MAP_NOCORE*/ /*| MAP_NOSYNC*/, fd, 0);
+void BlockStorage::mmap(size_t mapSize) {
+	this->map = ::mmap(NULL, mapSize, PROT_READ | PROT_WRITE, MAP_SHARED/* | MAP_NOCORE*/ /*| MAP_NOSYNC*/, fd, 0);
 	if(this->map == MAP_FAILED) {
 		perror("mmap");
 		exit(errno);
 	}
+// 	fprintf(stderr, "Map size: %llu\n", (unsigned long long)mapSize);
+	this->mapSize = mapSize;
 }
 
 void BlockStorage::flush() {
@@ -116,7 +120,34 @@ void BlockStorage::flush() {
 	}
 }
 
+void BlockStorage::unmap() {
+	if(this->map)
+		munmap(this->map, this->mapSize);
+
+	this->map = NULL;
+}
+
 void BlockStorage::remap() {
-	munmap(this->map, this->mmapedLen);
-	this->_doMmap();
+	size_t mapSize;
+	if(this->superblock)
+		mapSize = this->_fileSize() + this->superblock->blockSize * 20;
+	else
+		mapSize = this->_fileSize() + 1024*1024*4;
+
+	this->needRemap = false;
+	this->unmap();
+	this->mmap(mapSize);
+	this->superblock = new BlockStorageSuperblock(this->map);
+	this->onRemap();
+}
+
+off_t BlockStorage::_fileSize() {
+	struct stat s;
+
+	if(fstat(this->fd, &s) < 0) {
+		perror("fstat");
+		exit(errno);
+	}
+
+	return s.st_size;
 }
