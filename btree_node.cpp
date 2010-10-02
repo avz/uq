@@ -101,4 +101,6 @@ void UniqueBTreeNode::mlock() {
 
 	if(::mlock(start, this->tree->blockSize) < 0)
 		perror("mlock");
+	else
+		fprintf(stderr, "locked\n");
 }
