@@ -130,7 +130,7 @@ void BlockStorage::unmap() {
 void BlockStorage::remap() {
 	size_t mapSize;
 	if(this->superblock)
-		mapSize = this->_fileSize() + this->superblock->blockSize * 20;
+		mapSize = this->_fileSize() + this->superblock->blockSize * 200;
 	else
 		mapSize = this->_fileSize() + 1024*1024*4;
 
