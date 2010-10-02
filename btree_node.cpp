@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <sys/mman.h>
+#include <errno.h>
 
 #include "misc.hpp"
 #include "btree_node.hpp"
