@@ -99,8 +99,6 @@ void UniqueBTreeNode::mlock() {
 	void *start = (void*)((char *)this->keys - 4*2);
 // 	fprintf(stderr, "mlock from %p len %u\n", start, this->tree->blockSize);
 
-	if(::mlock(start, this->tree->blockSize) < 0)
+	if(::mlock(start, this->tree->blockSize) < 0 && errno != EAGAIN && errno != EPERM)
 		perror("mlock");
-	else
-		fprintf(stderr, "locked\n");
 }
