@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <sys/mman.h>
 
 #include "misc.hpp"
 #include "btree_node.hpp"
@@ -56,7 +57,7 @@ bool UniqueBTreeNode::add(void *key) {
 			t = searchInterval(this->keys, this->tree->keySize, this->numKeys, key);
 			if(t == -1)
 				return false;
-			UniqueBTreeNode n(this->tree, this->tree->get(this->childs[t]));
+			UniqueBTreeNode n = this->tree->get(this->childs[t]);
 
 			try {
 				return n.add(key);
@@ -72,6 +73,9 @@ bool UniqueBTreeNode::add(void *key) {
 				this->numKeys++;
 
 				insertInArray(this->childs, sizeof(uint32_t), this->numKeys, &right.blockId, t + 1);
+
+				if(!right.isLeaf)
+					right.mlock();
 			}
 		} while(true);
 	}
@@ -91,3 +95,10 @@ void UniqueBTreeNode::_appendKey(void *key) {
 	this->numKeys++;
 }
 
+void UniqueBTreeNode::mlock() {
+	void *start = (void*)((char *)this->keys - 4*2);
+// 	fprintf(stderr, "mlock from %p len %u\n", start, this->tree->blockSize);
+
+	if(::mlock(start, this->tree->blockSize) < 0)
+		perror("mlock");
+}

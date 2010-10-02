@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <openssl/md5.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #include "btree.hpp"
 
@@ -42,11 +44,17 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+// 	struct rlimit rl;
+// 	if(getrlimit(RLIMIT_MEMLOCK, &rl) == 0) {
+// 		if(rl.rlim_cur == RLIM_INFINITY)
+// 			exit(0);
+// 		printf("RLIMIT_MEMLOCK: %llu; max: %llu\n", (unsigned long long)rl.rlim_cur, (unsigned long long)rl.rlim_max);
+// 	}
+
 	if(!strlen(filename)) {
 		usage();
 		exit(255);
 	}
-
 
 	UniqueBTree tree(filename);
 

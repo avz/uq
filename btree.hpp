@@ -29,6 +29,7 @@ public:
 	void load();
 	void reload();
 	bool add(void *key);
+	UniqueBTreeNode get(uint32_t id);
 
 	void remap();
 

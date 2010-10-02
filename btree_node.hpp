@@ -23,6 +23,8 @@ public:
 	UniqueBTreeNode(UniqueBTree *tree, Block bl);
 	bool add(void *key);
 
+	void mlock();
+
 	void _appendKey(void *key);
 };
 
