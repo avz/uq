@@ -14,20 +14,24 @@
 
 /* ------------------------------------- */
 void usage();
+const char *getHost(const char *url);
 
 int main(int argc, char *argv[]) {
 	char line[1024];
+	char keyBuf[32];
 	unsigned long blockSize = 4096*4;
 	const char *filename = "";
 	char forceCreate = 0;
+	char urlMode = 0;
+
 	char ch;
 
-	while ((ch = getopt(argc, argv, "cb:t:")) != -1) {
+	while ((ch = getopt(argc, argv, "cub:t:")) != -1) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
 				if(blockSize < 32 || blockSize == ULONG_MAX) {
-					fputs("Block size mus be >32\n", stderr);
+					fputs("Block size must be >32\n", stderr);
 					exit(255);
 				}
 			break;
@@ -36,6 +40,9 @@ int main(int argc, char *argv[]) {
 			break;
 			case 'c':
 				forceCreate = 1;
+			break;
+			case 'u':
+				urlMode = 1;
 			break;
 			case '?':
 			default:
@@ -73,15 +80,45 @@ int main(int argc, char *argv[]) {
 	setlinebuf(stdout);
 
 	while(fgets(line, 1024, stdin)) {
-		if(tree.add(MD5((unsigned char *)line, strlen(line), NULL)))
+		if(urlMode) {
+			const char *host = getHost(line);
+			MD5((const unsigned char *)host, strlen(host), (unsigned char *)keyBuf);
+			MD5((unsigned char *)line, strlen(line), (unsigned char *)keyBuf+3);
+		} else {
+			MD5((unsigned char *)line, strlen(line), (unsigned char *)keyBuf);
+		}
+		if(tree.add(keyBuf))
 			fputs(line, stdout);
 	}
 
 	return EXIT_SUCCESS;
 }
 
+const char *getHost(const char *url) {
+	static char host[128];
+	size_t hostLen = 0;
+	int numSlashes = 0;
+	const char *chr;
+
+	for(chr=url; *chr; chr++) {
+		if(numSlashes == 2) {
+			if(*chr == '/')
+				break;
+			host[hostLen] = *chr;
+			hostLen++;
+			if(hostLen >= sizeof(host) - 1)
+				break;
+		}
+
+		if(*chr == '/')
+			numSlashes++;
+	}
+	host[hostLen] = 0;
+	return host;
+}
+
 void usage() {
-	fputs("Usage: uniq [-c] [-b blockSize] -t btreeFile\n", stderr);
+	fputs("Usage: uniq [-uc] [-b blockSize] -t btreeFile\n", stderr);
 }
 
 /* THE END */

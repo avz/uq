@@ -74,9 +74,6 @@ bool UniqueBTreeNode::add(void *key) {
 				this->numKeys++;
 
 				insertInArray(this->childs, sizeof(uint32_t), this->numKeys, &right.blockId, t + 1);
-
-				if(!right.isLeaf)
-					right.mlock();
 			}
 		} while(true);
 	}
@@ -94,12 +91,4 @@ uint32_t UniqueBTreeNode::maxKeys() {
 void UniqueBTreeNode::_appendKey(void *key) {
 	memcpy((char *)this->keys + this->numKeys * this->tree->keySize, key, this->tree->keySize);
 	this->numKeys++;
-}
-
-void UniqueBTreeNode::mlock() {
-	void *start = (void*)((char *)this->keys - 4*2);
-// 	fprintf(stderr, "mlock from %p len %u\n", start, this->tree->blockSize);
-
-	if(::mlock(start, this->tree->blockSize) < 0 && errno != EAGAIN && errno != EPERM)
-		perror("mlock");
 }

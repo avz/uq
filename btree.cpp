@@ -80,7 +80,6 @@ bool UniqueBTree::add(void *key) {
 			delete this->root;
 			this->root = newRoot;
 			this->superblock->rootNodeId = newRoot->blockId;
-			newRoot->mlock();
 		}
 	} while(true);
 }
@@ -93,9 +92,6 @@ void UniqueBTree::remap() {
 
 UniqueBTreeNode UniqueBTree::get(uint32_t id) {
 	UniqueBTreeNode n(this, BlockStorage::get(id));
-// 	fprintf(stderr, "get %u, leaf %u\n", id, n.isLeaf);
-	if(!n.isLeaf)
-		n.mlock();
 
 	return n;
 }
