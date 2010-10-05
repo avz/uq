@@ -54,9 +54,3 @@ off_t insertInSortedArray(void *arr, size_t itemSize, size_t itemsCount, const v
 	insertInArray(arr, itemSize, itemsCount, newItem, off);
 	return off;
 }
-
-void *arrayPop(void *arr, size_t itemSize, size_t itemsCount, void *dst) {
-	memcpy(dst, arr, itemSize);
-	memmove(arr, (char *)arr + itemSize, (itemsCount - 1)*itemSize);
-	return dst;
-}

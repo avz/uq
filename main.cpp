@@ -127,11 +127,10 @@ int main(int argc, char *argv[]) {
 			off_t index;
 
 			if(preSortBufferCurrentSize >= OPTS.preSortBufferSize) {
-				char popedItem[itemSize];
+				char *popedItem = preSortBuffer + (preSortBufferCurrentSize - 1) * itemSize;
 				char *lineS;
 				char **ptr;
 
-				arrayPop(preSortBuffer, itemSize, preSortBufferCurrentSize, &popedItem);
 				ptr = (char **)(popedItem + 8);
 				lineS = *ptr;
 
