@@ -20,6 +20,11 @@ struct options {
 	char urlMode;
 	char preSort;
 	size_t preSortBufferSize;
+	
+	// fields control
+	int  fields_enabled;
+	int  choose_field;
+	char field_sep;
 };
 /* ------------------------------------- */
 
@@ -27,7 +32,8 @@ static struct options OPTS;
 
 void usage();
 const char *getHost(const char *url);
-const unsigned char *getHash(const char *string);
+const unsigned char *getHash(const char *string, int string_len);
+int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len);
 
 int main(int argc, char *argv[]) {
 	const char *filename = "";
@@ -43,8 +49,12 @@ int main(int argc, char *argv[]) {
 	OPTS.urlMode = 0;
 	OPTS.preSort = 0;
 	OPTS.preSortBufferSize = 256;
-
-	while ((ch = getopt(argc, argv, "scub:t:S:")) != -1) {
+	// fields control
+	OPTS.fields_enabled = 0;
+	OPTS.choose_field   = 0;
+	OPTS.field_sep      = ';';
+	
+	while ((ch = getopt(argc, argv, "scub:t:S:f:d:")) != -1) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
@@ -73,6 +83,13 @@ int main(int argc, char *argv[]) {
 			break;
 			case 'u':
 				OPTS.urlMode = 1;
+			break;
+			case 'f':
+				OPTS.fields_enabled = 1;
+				OPTS.choose_field   = strtoul(optarg, NULL, 0);
+			break;
+			case 'd':
+				OPTS.field_sep      = *(char *)optarg;
 			break;
 			case '?':
 			default:
@@ -108,7 +125,11 @@ int main(int argc, char *argv[]) {
 	}*/
 	setlinebuf(stdin);
 	setlinebuf(stdout);
-
+	
+	char line[1024];
+	char *line_ptr;
+	int   line_len;
+	
 	if(OPTS.preSort) {
 		char *preSortBuffer;
 		size_t preSortBufferCurrentSize = 0;
@@ -122,7 +143,6 @@ int main(int argc, char *argv[]) {
 
 		while(1) {
 			char newItem[8 + sizeof(void *)];
-			char line[1024];
 			const unsigned char *hash;
 			off_t index;
 
@@ -141,13 +161,13 @@ int main(int argc, char *argv[]) {
 				preSortBufferCurrentSize--;
 			}
 
-			if(!fgets(line, sizeof(line), stdin))
+			if(getStdinLine(line, sizeof(line), &line_ptr, &line_len) == 0)
 				break;
-
-			hash = getHash(line);
-
+			
+			hash = getHash(line_ptr, line_len);
+			
 			memcpy(newItem, hash, 8);
-
+			
 			if(preSortBufferCurrentSize) {
 				index = insertInSortedArray(preSortBuffer, itemSize, preSortBufferCurrentSize, newItem);
 			} else {
@@ -177,14 +197,53 @@ int main(int argc, char *argv[]) {
 		preSortBufferCurrentSize = 0;
 
 	} else {
-		char line[1024];
-		while(fgets(line, sizeof(line), stdin)) {
-			if(tree.add(getHash(line)))
+		while(getStdinLine(line, sizeof(line), &line_ptr, &line_len)) {
+			if(tree.add(getHash(line_ptr, line_len)))
 				fputs(line, stdout);
 		}
 	}
 
 	return EXIT_SUCCESS;
+}
+
+// returns 0 on EOF, 1 on success
+int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len){
+	int eol, curr_field;
+	char *curr, *next;
+	
+	do{
+		if(!fgets(buf, buf_size, stdin))
+			return 0;
+		
+		if(OPTS.fields_enabled == 0){
+			*line_start = buf;
+			*line_len   = strlen(buf);
+			return 1;
+		}
+		
+		curr = buf;
+		eol  = 0;
+		curr_field = 1;
+		do{
+			next = strchr(curr, OPTS.field_sep);
+			if(next == NULL){
+				if(curr_field == OPTS.choose_field){
+					*line_start = curr;
+					*line_len   = strlen(curr) - 1;
+					return 1;
+				}
+				break;
+			}
+			
+			if(curr_field == OPTS.choose_field){
+				*line_start = curr;
+				*line_len   = next - curr;
+				return 1;
+			}
+			curr = next + 1; // skip field sep
+			curr_field++;
+		}while(curr);
+	}while(1);
 }
 
 const char *getHost(const char *url) {
@@ -202,7 +261,7 @@ const char *getHost(const char *url) {
 			if(hostLen >= sizeof(host) - 1)
 				break;
 		}
-
+		
 		if(*chr == '/')
 			numSlashes++;
 	}
@@ -211,18 +270,22 @@ const char *getHost(const char *url) {
 }
 
 void usage() {
-	fputs("Usage: uniq [-uc] [-b blockSize] -t btreeFile\n", stderr);
+	fputs("Usage: uniq [-uc] [-S bufSize] [-b blockSize] -t btreeFile\n", stderr);
+	fputs("\n", stderr);
+	fputs("  -u        url mode\n", stderr);
+	fputs("  -s        pre-sort input\n", stderr);
+	fputs("  -S        pre-sort buffer size\n", stderr);
 }
 
-const unsigned char *getHash(const char *string) {
+const unsigned char *getHash(const char *string, int string_len) {
 	static unsigned char hashBuf[32];
-
+	
 	if(OPTS.urlMode) {
 		const char *host = getHost(string);
 		MD5((const unsigned char *)host, strlen(host), hashBuf);
-		MD5((const unsigned char *)string, strlen(string), hashBuf+3);
+		MD5((const unsigned char *)string, string_len, hashBuf+3);
 	} else {
-		MD5((const unsigned char *)string, strlen(string), hashBuf);
+		MD5((const unsigned char *)string, string_len, hashBuf);
 	}
 	return hashBuf;
 }
