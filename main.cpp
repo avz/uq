@@ -42,8 +42,6 @@ int main(int argc, char *argv[]) {
 	unsigned long preSortBufferSize;
 	unsigned long choose_field;
 
-// 	size_t preSortBufferCurrentSize = 0;
-
 	char ch;
 
 	OPTS.blockSize = 4096*2;
@@ -114,13 +112,6 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-// 	struct rlimit rl;
-// 	if(getrlimit(RLIMIT_MEMLOCK, &rl) == 0) {
-// 		if(rl.rlim_cur == RLIM_INFINITY)
-// 			exit(0);
-// 		printf("RLIMIT_MEMLOCK: %llu; max: %llu\n", (unsigned long long)rl.rlim_cur, (unsigned long long)rl.rlim_max);
-// 	}
-
 	if(!strlen(filename)) {
 		usage();
 		exit(255);
@@ -135,10 +126,7 @@ int main(int argc, char *argv[]) {
 		tree.create(OPTS.blockSize);
 		fprintf(stderr, "New btree in %s with blockSize=%u was created\n", filename, tree.blockSize);
 	}
-/*
-	for(unsigned int i=0; i<1400; i++) {
-		tree.add(MD5((unsigned char *)&i, sizeof(i), NULL));
-	}*/
+
 	setlinebuf(stdin);
 	setlinebuf(stdout);
 
