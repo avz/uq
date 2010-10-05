@@ -53,7 +53,7 @@ void UniqueBTree::reload() {
 	this->root = new UniqueBTreeNode(this, BlockStorage::get(this->superblock->rootNodeId));
 }
 
-bool UniqueBTree::add(void *key) {
+bool UniqueBTree::add(const void *key) {
 	this->keysAddedInCurrentSession++;
 	if(this->keysAddedInCurrentSession > 1000000 || this->needRemap) {
 		this->remap();

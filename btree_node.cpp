@@ -35,7 +35,7 @@ void UniqueBTreeNode::split(UniqueBTreeNode *right, void *key) {
 	}
 }
 
-bool UniqueBTreeNode::add(void *key) {
+bool UniqueBTreeNode::add(const void *key) {
 	off_t t;
 // fprintf(stderr, "max keys: %u\n", this->maxKeys());
 	if(this->isLeaf) {

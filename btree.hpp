@@ -28,7 +28,7 @@ public:
 	void create(size_t blockSize);
 	void load();
 	void reload();
-	bool add(void *key);
+	bool add(const void *key);
 	UniqueBTreeNode get(uint32_t id);
 
 	void remap();

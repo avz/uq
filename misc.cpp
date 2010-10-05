@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-off_t searchInterval(void *arr, size_t itemSize, size_t itemsCount, void *needle) {
+off_t searchInterval(void *arr, size_t itemSize, size_t itemsCount, const void *needle) {
 	off_t start = 0;
 	off_t end = itemsCount - 1;
 
@@ -39,18 +39,24 @@ off_t searchInterval(void *arr, size_t itemSize, size_t itemsCount, void *needle
 	} while(true);
 }
 
-void insertInArray(void *arr, size_t itemSize, size_t itemsCount, void *newItem, off_t place) {
+void insertInArray(void *arr, size_t itemSize, size_t itemsCount, const void *newItem, off_t place) {
 	size_t copySize = (itemsCount - place) * itemSize;
 	char *t = (char *)arr + place * itemSize;
 	memmove(t + itemSize, t, copySize);
 	memcpy(t, newItem, itemSize);
 }
 
-off_t insertInSortedArray(void *arr, size_t itemSize, size_t itemsCount, void *newItem) {
+off_t insertInSortedArray(void *arr, size_t itemSize, size_t itemsCount, const void *newItem) {
 	off_t off = searchInterval(arr, itemSize, itemsCount, newItem);
 	if(off < 0)
 		return -1;
 
 	insertInArray(arr, itemSize, itemsCount, newItem, off);
 	return off;
+}
+
+void *arrayPop(void *arr, size_t itemSize, size_t itemsCount, void *dst) {
+	memcpy(dst, arr, itemSize);
+	memmove(arr, (char *)arr + itemSize, (itemsCount - 1)*itemSize);
+	return dst;
 }

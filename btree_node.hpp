@@ -21,7 +21,7 @@ public:
 
 	void split(UniqueBTreeNode *right, void *key);
 	UniqueBTreeNode(UniqueBTree *tree, Block bl);
-	bool add(void *key);
+	bool add(const void *key);
 
 	void mlock();
 

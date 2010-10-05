@@ -3,6 +3,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <getopt.h>
+#include <errno.h>
 #include <limits.h>
 #include <unistd.h>
 #include <inttypes.h>
@@ -11,22 +12,39 @@
 #include <sys/resource.h>
 
 #include "btree.hpp"
+#include "misc.hpp"
 
+struct options {
+	size_t blockSize;
+	char forceCreateNewDb;
+	char urlMode;
+	char preSort;
+	size_t preSortBufferSize;
+};
 /* ------------------------------------- */
+
+static struct options OPTS;
+
 void usage();
 const char *getHost(const char *url);
+const unsigned char *getHash(const char *string);
 
 int main(int argc, char *argv[]) {
-	char line[1024];
-	char keyBuf[32];
-	unsigned long blockSize = 4096*4;
 	const char *filename = "";
-	char forceCreate = 0;
-	char urlMode = 0;
+	unsigned long blockSize;
+	unsigned long preSortBufferSize;
+
+// 	size_t preSortBufferCurrentSize = 0;
 
 	char ch;
 
-	while ((ch = getopt(argc, argv, "cub:t:")) != -1) {
+	OPTS.blockSize = 4096*2;
+	OPTS.forceCreateNewDb = 0;
+	OPTS.urlMode = 0;
+	OPTS.preSort = 0;
+	OPTS.preSortBufferSize = 256;
+
+	while ((ch = getopt(argc, argv, "scub:t:S:")) != -1) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
@@ -34,15 +52,27 @@ int main(int argc, char *argv[]) {
 					fputs("Block size must be >32\n", stderr);
 					exit(255);
 				}
+				OPTS.blockSize = blockSize;
 			break;
 			case 't':
 				filename = optarg;
 			break;
 			case 'c':
-				forceCreate = 1;
+				OPTS.forceCreateNewDb = 1;
+			break;
+			case 's':
+				OPTS.preSort = 1;
+			break;
+			case 'S':
+				preSortBufferSize = strtoul(optarg, NULL, 0);
+				if(preSortBufferSize < 32 || preSortBufferSize == ULONG_MAX) {
+					fputs("Block size must be >32\n", stderr);
+					exit(255);
+				}
+				OPTS.preSortBufferSize = preSortBufferSize;
 			break;
 			case 'u':
-				urlMode = 1;
+				OPTS.urlMode = 1;
 			break;
 			case '?':
 			default:
@@ -65,11 +95,11 @@ int main(int argc, char *argv[]) {
 
 	UniqueBTree tree(filename);
 
-	if(access(filename, R_OK | W_OK) == 0 && !forceCreate) {
+	if(access(filename, R_OK | W_OK) == 0 && !OPTS.forceCreateNewDb) {
 		tree.load();
 		fprintf(stderr, "Btree from %s with blockSize=%u was loaded\n", filename, tree.blockSize);
 	} else {
-		tree.create((size_t)blockSize);
+		tree.create(OPTS.blockSize);
 		fprintf(stderr, "New btree in %s with blockSize=%u was created\n", filename, tree.blockSize);
 	}
 /*
@@ -79,16 +109,80 @@ int main(int argc, char *argv[]) {
 	setlinebuf(stdin);
 	setlinebuf(stdout);
 
-	while(fgets(line, 1024, stdin)) {
-		if(urlMode) {
-			const char *host = getHost(line);
-			MD5((const unsigned char *)host, strlen(host), (unsigned char *)keyBuf);
-			MD5((unsigned char *)line, strlen(line), (unsigned char *)keyBuf+3);
-		} else {
-			MD5((unsigned char *)line, strlen(line), (unsigned char *)keyBuf);
+	if(OPTS.preSort) {
+		char *preSortBuffer;
+		size_t preSortBufferCurrentSize = 0;
+		size_t i;
+		size_t itemSize = 8 + sizeof(void *);
+
+		if(!(preSortBuffer = (char *)calloc(OPTS.preSortBufferSize, itemSize))) {
+			perror("calloc");
+			exit(errno);
 		}
-		if(tree.add(keyBuf))
-			fputs(line, stdout);
+
+		while(1) {
+			char newItem[8 + sizeof(void *)];
+			char line[1024];
+			const unsigned char *hash;
+			off_t index;
+
+			if(preSortBufferCurrentSize >= OPTS.preSortBufferSize) {
+				char popedItem[itemSize];
+				char *lineS;
+				char **ptr;
+
+				arrayPop(preSortBuffer, itemSize, preSortBufferCurrentSize, &popedItem);
+				ptr = (char **)(popedItem + 8);
+				lineS = *ptr;
+
+				if(tree.add(popedItem))
+					fputs(lineS, stdout);
+
+				free(lineS);
+				preSortBufferCurrentSize--;
+			}
+
+			if(!fgets(line, sizeof(line), stdin))
+				break;
+
+			hash = getHash(line);
+
+			memcpy(newItem, hash, 8);
+
+			if(preSortBufferCurrentSize) {
+				index = insertInSortedArray(preSortBuffer, itemSize, preSortBufferCurrentSize, newItem);
+			} else {
+				memcpy(preSortBuffer, newItem, itemSize);
+				index = 0;
+			}
+			if(index != -1) {
+				char *t = preSortBuffer + index * itemSize;
+				char *lineS = (char *)malloc(strlen(line) + 1);
+				char **ptr = (char **)(t + 8);
+				strcpy(lineS, line);
+				*ptr = lineS;
+
+				preSortBufferCurrentSize++;
+			}
+		}
+
+		for(i=0; i<preSortBufferCurrentSize; i++) {
+			char *t = preSortBuffer + i * itemSize;
+			char **ptr = (char **)(t + 8);
+			char *lineS = *ptr;
+
+			if(tree.add(t))
+				fputs(lineS, stdout);
+			free(lineS);
+		}
+		preSortBufferCurrentSize = 0;
+
+	} else {
+		char line[1024];
+		while(fgets(line, sizeof(line), stdin)) {
+			if(tree.add(getHash(line)))
+				fputs(line, stdout);
+		}
 	}
 
 	return EXIT_SUCCESS;
@@ -119,6 +213,19 @@ const char *getHost(const char *url) {
 
 void usage() {
 	fputs("Usage: uniq [-uc] [-b blockSize] -t btreeFile\n", stderr);
+}
+
+const unsigned char *getHash(const char *string) {
+	static unsigned char hashBuf[32];
+
+	if(OPTS.urlMode) {
+		const char *host = getHost(string);
+		MD5((const unsigned char *)host, strlen(host), hashBuf);
+		MD5((const unsigned char *)string, strlen(string), hashBuf+3);
+	} else {
+		MD5((const unsigned char *)string, strlen(string), hashBuf);
+	}
+	return hashBuf;
 }
 
 /* THE END */
