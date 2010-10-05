@@ -10,6 +10,7 @@
 #include <openssl/md5.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <ctype.h>
 
 #include "btree.hpp"
 #include "misc.hpp"
@@ -25,6 +26,7 @@ struct options {
 	int  fields_enabled;
 	int  choose_field;
 	char field_sep;
+	int  ignore_case;
 };
 /* ------------------------------------- */
 
@@ -53,8 +55,9 @@ int main(int argc, char *argv[]) {
 	OPTS.fields_enabled = 0;
 	OPTS.choose_field   = 0;
 	OPTS.field_sep      = ';';
+	OPTS.ignore_case    = 0;
 	
-	while ((ch = getopt(argc, argv, "scub:t:S:f:d:")) != -1) {
+	while ((ch = getopt(argc, argv, "scuib:t:S:f:d:")) != -1) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
@@ -90,6 +93,9 @@ int main(int argc, char *argv[]) {
 			break;
 			case 'd':
 				OPTS.field_sep      = *(char *)optarg;
+			break;
+			case 'i':
+				OPTS.ignore_case    = 1;
 			break;
 			case '?':
 			default:
@@ -206,6 +212,17 @@ int main(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
+void strtolower(char *str, int len){
+	int i;
+	
+	if(OPTS.ignore_case == 0)
+		return;
+
+	for(i=0; i<len; i++){
+		*str = tolower(*str);
+	}
+}
+
 // returns 0 on EOF, 1 on success
 int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len){
 	int eol, curr_field;
@@ -218,6 +235,7 @@ int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len){
 		if(OPTS.fields_enabled == 0){
 			*line_start = buf;
 			*line_len   = strlen(buf);
+			strtolower(*line_start, *line_len);
 			return 1;
 		}
 		
@@ -230,6 +248,7 @@ int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len){
 				if(curr_field == OPTS.choose_field){
 					*line_start = curr;
 					*line_len   = strlen(curr) - 1;
+					strtolower(*line_start, *line_len);
 					return 1;
 				}
 				break;
@@ -238,6 +257,7 @@ int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len){
 			if(curr_field == OPTS.choose_field){
 				*line_start = curr;
 				*line_len   = next - curr;
+				strtolower(*line_start, *line_len);
 				return 1;
 			}
 			curr = next + 1; // skip field sep
@@ -275,6 +295,9 @@ void usage() {
 	fputs("  -u        url mode\n", stderr);
 	fputs("  -s        pre-sort input\n", stderr);
 	fputs("  -S        pre-sort buffer size\n", stderr);
+	fputs("  -f        select field\n", stderr);
+	fputs("  -d        use given delimiter instead of ';'\n", stderr);
+	fputs("  -i        ignore case\n", stderr);
 }
 
 const unsigned char *getHash(const char *string, int string_len) {
