@@ -309,6 +309,8 @@ const unsigned char *getHash(const char *string, int string_len) {
 	} else {
 		MD5((const unsigned char *)lowerString, string_len, hashBuf);
 	}
+
+	free(lowerString);
 	return hashBuf;
 }
 
