@@ -10,7 +10,6 @@
 #include <openssl/md5.h>
 #include <sys/time.h>
 #include <sys/resource.h>
-#include <ctype.h>
 
 #include "btree.hpp"
 #include "misc.hpp"
@@ -20,20 +19,20 @@ struct options {
 	char forceCreateNewDb;
 	char urlMode;
 	char preSort;
+	char ignoreCase;
 	size_t preSortBufferSize;
-	
+
 	// fields control
 	int  fields_enabled;
 	int  choose_field;
 	char field_sep;
-	int  ignore_case;
 };
 /* ------------------------------------- */
 
 static struct options OPTS;
 
 void usage();
-const char *getHost(const char *url);
+const char *getHost(const char *url, size_t len);
 const unsigned char *getHash(const char *string, int string_len);
 int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len);
 
@@ -41,6 +40,7 @@ int main(int argc, char *argv[]) {
 	const char *filename = "";
 	unsigned long blockSize;
 	unsigned long preSortBufferSize;
+	unsigned long choose_field;
 
 // 	size_t preSortBufferCurrentSize = 0;
 
@@ -50,14 +50,14 @@ int main(int argc, char *argv[]) {
 	OPTS.forceCreateNewDb = 0;
 	OPTS.urlMode = 0;
 	OPTS.preSort = 0;
+	OPTS.ignoreCase = 0;
 	OPTS.preSortBufferSize = 256;
 	// fields control
 	OPTS.fields_enabled = 0;
 	OPTS.choose_field   = 0;
 	OPTS.field_sep      = ';';
-	OPTS.ignore_case    = 0;
-	
-	while ((ch = getopt(argc, argv, "scuib:t:S:f:d:")) != -1) {
+
+	while ((ch = getopt(argc, argv, "sicub:t:S:f:d:")) != -1) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
@@ -76,10 +76,13 @@ int main(int argc, char *argv[]) {
 			case 's':
 				OPTS.preSort = 1;
 			break;
+			case 'i':
+				OPTS.ignoreCase = 1;
+			break;
 			case 'S':
 				preSortBufferSize = strtoul(optarg, NULL, 0);
-				if(preSortBufferSize < 32 || preSortBufferSize == ULONG_MAX) {
-					fputs("Block size must be >32\n", stderr);
+				if(preSortBufferSize < 2 || preSortBufferSize == ULONG_MAX) {
+					fputs("Pre-sort fuffer size must be >2\n", stderr);
 					exit(255);
 				}
 				OPTS.preSortBufferSize = preSortBufferSize;
@@ -89,13 +92,20 @@ int main(int argc, char *argv[]) {
 			break;
 			case 'f':
 				OPTS.fields_enabled = 1;
-				OPTS.choose_field   = strtoul(optarg, NULL, 0);
+				choose_field = strtoul(optarg, NULL, 0);
+
+				if(choose_field == ULONG_MAX || choose_field > INT_MAX) {
+					fputs("Field must be int\n", stderr);
+					exit(255);
+				}
+				OPTS.choose_field = choose_field;
 			break;
 			case 'd':
+				if(strlen(optarg) != 1) {
+					fputs("Field separator must be char\n", stderr);
+					exit(255);
+				}
 				OPTS.field_sep      = *(char *)optarg;
-			break;
-			case 'i':
-				OPTS.ignore_case    = 1;
 			break;
 			case '?':
 			default:
@@ -131,11 +141,11 @@ int main(int argc, char *argv[]) {
 	}*/
 	setlinebuf(stdin);
 	setlinebuf(stdout);
-	
+
 	char line[1024];
 	char *line_ptr;
 	int   line_len;
-	
+
 	if(OPTS.preSort) {
 		char *preSortBuffer;
 		size_t preSortBufferCurrentSize = 0;
@@ -169,11 +179,11 @@ int main(int argc, char *argv[]) {
 
 			if(getStdinLine(line, sizeof(line), &line_ptr, &line_len) == 0)
 				break;
-			
+
 			hash = getHash(line_ptr, line_len);
-			
+
 			memcpy(newItem, hash, 8);
-			
+
 			if(preSortBufferCurrentSize) {
 				index = insertInSortedArray(preSortBuffer, itemSize, preSortBufferCurrentSize, newItem);
 			} else {
@@ -212,33 +222,21 @@ int main(int argc, char *argv[]) {
 	return EXIT_SUCCESS;
 }
 
-void strtolower(char *str, int len){
-	int i;
-	
-	if(OPTS.ignore_case == 0)
-		return;
-
-	for(i=0; i<len; i++){
-		*str = tolower(*str);
-	}
-}
-
 // returns 0 on EOF, 1 on success
 int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len){
 	int eol, curr_field;
 	char *curr, *next;
-	
+
 	do{
 		if(!fgets(buf, buf_size, stdin))
 			return 0;
-		
+
 		if(OPTS.fields_enabled == 0){
 			*line_start = buf;
 			*line_len   = strlen(buf);
-			strtolower(*line_start, *line_len);
 			return 1;
 		}
-		
+
 		curr = buf;
 		eol  = 0;
 		curr_field = 1;
@@ -248,16 +246,14 @@ int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len){
 				if(curr_field == OPTS.choose_field){
 					*line_start = curr;
 					*line_len   = strlen(curr) - 1;
-					strtolower(*line_start, *line_len);
 					return 1;
 				}
 				break;
 			}
-			
+
 			if(curr_field == OPTS.choose_field){
 				*line_start = curr;
 				*line_len   = next - curr;
-				strtolower(*line_start, *line_len);
 				return 1;
 			}
 			curr = next + 1; // skip field sep
@@ -266,25 +262,26 @@ int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len){
 	}while(1);
 }
 
-const char *getHost(const char *url) {
+const char *getHost(const char *url, size_t len) {
 	static char host[128];
 	size_t hostLen = 0;
 	int numSlashes = 0;
-	const char *chr;
+	size_t i;
 
-	for(chr=url; *chr; chr++) {
+	for(i=0; i < len && url[i]; i++) {
 		if(numSlashes == 2) {
-			if(*chr == '/')
+			if(url[i] == '/')
 				break;
-			host[hostLen] = *chr;
+			host[hostLen] = url[i];
 			hostLen++;
 			if(hostLen >= sizeof(host) - 1)
 				break;
 		}
-		
-		if(*chr == '/')
+
+		if(url[i] == '/')
 			numSlashes++;
 	}
+
 	host[hostLen] = 0;
 	return host;
 }
@@ -302,13 +299,15 @@ void usage() {
 
 const unsigned char *getHash(const char *string, int string_len) {
 	static unsigned char hashBuf[32];
-	
+	char *lowerString = (char *)malloc(string_len);
+	strtolower(lowerString, string, string_len);
+
 	if(OPTS.urlMode) {
-		const char *host = getHost(string);
+		const char *host = getHost(lowerString, string_len);
 		MD5((const unsigned char *)host, strlen(host), hashBuf);
-		MD5((const unsigned char *)string, string_len, hashBuf+3);
+		MD5((const unsigned char *)lowerString, string_len, hashBuf+3);
 	} else {
-		MD5((const unsigned char *)string, string_len, hashBuf);
+		MD5((const unsigned char *)lowerString, string_len, hashBuf);
 	}
 	return hashBuf;
 }

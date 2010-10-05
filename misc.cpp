@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 off_t searchInterval(void *arr, size_t itemSize, size_t itemsCount, const void *needle) {
 	off_t start = 0;
@@ -53,4 +54,12 @@ off_t insertInSortedArray(void *arr, size_t itemSize, size_t itemsCount, const v
 
 	insertInArray(arr, itemSize, itemsCount, newItem, off);
 	return off;
+}
+
+char *strtolower(char *dst, const char *src, size_t len) {
+	size_t i;
+	for(i=0; i < len; i++)
+		dst[i] = tolower(src[i]);
+
+	return dst;
 }
