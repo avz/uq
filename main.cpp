@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <signal.h>
 #include <string.h>
 #include <sys/types.h>
 #include <getopt.h>
@@ -35,6 +36,7 @@ void usage();
 const char *getHost(const char *url, size_t len);
 const unsigned char *getHash(const char *string, int string_len);
 int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len);
+void onSignal(int sig);
 
 int main(int argc, char *argv[]) {
 	const char *filename = "";
@@ -117,6 +119,12 @@ int main(int argc, char *argv[]) {
 		exit(255);
 	}
 
+	signal(SIGHUP, onSignal);
+	signal(SIGINT, onSignal);
+	signal(SIGKILL, onSignal);
+	signal(SIGPIPE, onSignal);
+	signal(SIGTERM, onSignal);
+
 	UniqueBTree tree(filename);
 
 	if(access(filename, R_OK | W_OK) == 0 && !OPTS.forceCreateNewDb) {
@@ -178,6 +186,7 @@ int main(int argc, char *argv[]) {
 				memcpy(preSortBuffer, newItem, itemSize);
 				index = 0;
 			}
+
 			if(index != -1) {
 				char *t = preSortBuffer + index * itemSize;
 				char *lineS = (char *)malloc(strlen(line) + 1);
@@ -208,6 +217,10 @@ int main(int argc, char *argv[]) {
 	}
 
 	return EXIT_SUCCESS;
+}
+
+void onSignal(int sig) {
+	fclose(stdin);
 }
 
 // returns 0 on EOF, 1 on success
@@ -287,15 +300,22 @@ void usage() {
 
 const unsigned char *getHash(const char *string, int string_len) {
 	static unsigned char hashBuf[32];
-	char *lowerString = (char *)alloca(string_len);
-	strtolower(lowerString, string, string_len);
+	const char *str;
+
+	if(OPTS.ignoreCase) {
+		str = (char *)alloca(string_len);
+		strtolower((char *)str, string, string_len);
+	} else {
+		str = string;
+	}
+
 
 	if(OPTS.urlMode) {
-		const char *host = getHost(lowerString, string_len);
+		const char *host = getHost(str, string_len);
 		MD5((const unsigned char *)host, strlen(host), hashBuf);
-		MD5((const unsigned char *)lowerString, string_len, hashBuf+3);
+		MD5((const unsigned char *)str, string_len, hashBuf+3);
 	} else {
-		MD5((const unsigned char *)lowerString, string_len, hashBuf);
+		MD5((const unsigned char *)str, string_len, hashBuf);
 	}
 	return hashBuf;
 }

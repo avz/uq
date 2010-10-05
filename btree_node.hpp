@@ -8,6 +8,7 @@
 class UniqueBTree;
 
 class UniqueBTreeNode {
+	Block *block;
 	UniqueBTree *tree;
 
 	uint32_t maxKeys();
@@ -19,11 +20,15 @@ public:
 	uint32_t &numKeys;
 	uint32_t blockId;
 
+	UniqueBTreeNode(UniqueBTree *tree, Block *bl);
+	~UniqueBTreeNode();
+
 	void split(UniqueBTreeNode *right, void *key);
-	UniqueBTreeNode(UniqueBTree *tree, Block bl);
 	bool add(const void *key);
 
 	void mlock();
+
+	void update();
 
 	void _appendKey(void *key);
 };

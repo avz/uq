@@ -7,16 +7,24 @@
 #include "btree_node.hpp"
 #include "btree.hpp"
 
-UniqueBTreeSuperblock::UniqueBTreeSuperblock(void *ptr)
-	:keySize(*(uint32_t *)ptr),
-	rootNodeId(*((uint32_t *)ptr + 1))
+UniqueBTreeSuperblock::UniqueBTreeSuperblock(Block *block)
+	:block(block),
+	keySize(*(uint32_t *)block->ptr),
+	rootNodeId(*((uint32_t *)block->ptr + 1))
 {}
+
+UniqueBTreeSuperblock::~UniqueBTreeSuperblock() {
+	this->block->free();
+}
+
+void UniqueBTreeSuperblock::update() {
+	this->block->update();
+}
 
 
 UniqueBTree::UniqueBTree(const char *filename)
 	:BlockStorage(filename),
 	root(NULL),
-	keysAddedInCurrentSession(0),
 	superblock(NULL)
 {
 }
@@ -31,6 +39,21 @@ UniqueBTree::~UniqueBTree() {
 
 void UniqueBTree::create(size_t blockSize) {
 	BlockStorage::create(blockSize);
+
+	this->superblock = new UniqueBTreeSuperblock(this->allocate());
+	this->superblock->keySize = 8;
+
+	this->root = new UniqueBTreeNode(this, this->allocate());
+	this->root->isLeaf = 1;
+	this->root->numKeys = 0;
+
+	this->superblock->rootNodeId = root->blockId;
+
+	this->superblock->update();
+	this->root->update();
+
+	this->blockSize = BlockStorage::superblock->blockSize;
+	this->keySize = this->superblock->keySize;
 }
 
 void UniqueBTree::load() {
@@ -42,7 +65,7 @@ void UniqueBTree::reload() {
 	if(this->superblock)
 		delete this->superblock;
 
-	this->superblock = new UniqueBTreeSuperblock(BlockStorage::get(1).ptr);
+	this->superblock = new UniqueBTreeSuperblock(BlockStorage::get(1));
 
 	this->blockSize = BlockStorage::superblock->blockSize;
 	this->keySize = this->superblock->keySize;
@@ -54,13 +77,6 @@ void UniqueBTree::reload() {
 }
 
 bool UniqueBTree::add(const void *key) {
-	this->keysAddedInCurrentSession++;
-	if(this->keysAddedInCurrentSession > 1000000 || this->needRemap) {
-		this->remap();
-		this->keysAddedInCurrentSession = 0;
-	}
-// fprintf(stderr, "root size: %u\n", this->root->numKeys);
-// fprintf(stderr, "key size: %u\n", this->keySize);
 	do {
 		try {
 			return this->root->add(key);
@@ -80,36 +96,12 @@ bool UniqueBTree::add(const void *key) {
 			delete this->root;
 			this->root = newRoot;
 			this->superblock->rootNodeId = newRoot->blockId;
+			newRoot->update();
+			this->superblock->update();
 		}
 	} while(true);
 }
 
-void UniqueBTree::remap() {
-// 	fprintf(stderr, "Remmaping\n");
-	this->flush();
-	BlockStorage::remap();
-}
-
-UniqueBTreeNode UniqueBTree::get(uint32_t id) {
-	UniqueBTreeNode n(this, BlockStorage::get(id));
-
-	return n;
-}
-
-void UniqueBTree::onRemap() {
-	if(!this->superblock) { // creating
-		Block sb = this->allocate();
-		this->root = new UniqueBTreeNode(this, this->allocate());
-		this->root->isLeaf = 1;
-		this->root->numKeys = 0;
-
-		this->superblock = new UniqueBTreeSuperblock(sb.ptr);
-		this->superblock->keySize = 8;
-		this->superblock->rootNodeId = root->blockId;
-
-		this->blockSize = BlockStorage::superblock->blockSize;
-		this->keySize = this->superblock->keySize;
-	} else { // loading and remapping
-		this->reload();
-	}
+UniqueBTreeNode *UniqueBTree::get(uint32_t id) {
+	return new UniqueBTreeNode(this, BlockStorage::get(id));
 }

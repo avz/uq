@@ -9,19 +9,25 @@ class UniqueBTreeNode;
 class UniqueBTreeNode_NeedSplit {};
 
 class UniqueBTreeSuperblock {
+	Block *block;
+
 public:
 	uint32_t &keySize;
 	uint32_t &rootNodeId;
-	UniqueBTreeSuperblock(void *ptr);
+	UniqueBTreeSuperblock(Block *block);
+	~UniqueBTreeSuperblock();
+
+	void update();
 };
 
 class UniqueBTree: public BlockStorage {
 	UniqueBTreeNode *root;
-	unsigned int keysAddedInCurrentSession;
+
 public:
 	UniqueBTreeSuperblock *superblock;
 	uint32_t keySize;
 	uint32_t blockSize;
+
 	UniqueBTree(const char *filename);
 	~UniqueBTree();
 
@@ -29,11 +35,7 @@ public:
 	void load();
 	void reload();
 	bool add(const void *key);
-	UniqueBTreeNode get(uint32_t id);
-
-	void remap();
-
-	void onRemap();
+	UniqueBTreeNode *get(uint32_t id);
 };
 
 #endif

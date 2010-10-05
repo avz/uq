@@ -2,37 +2,44 @@
 #define STORAGE_HPP
 #include <stdint.h>
 #include <stdlib.h>
+#include <map>
 
 class Block {
 public:
+	bool needUpdate;
+	int refCount;
 	uint32_t id;
-	void *ptr;
+	char *ptr;
 
-// 	Block();
-// 	~Block();
+	Block(size_t blockSize);
+	~Block();
+
+	void free();
+	void update();
 };
 
 class BlockStorageSuperblock {
 public:
+	Block *block;
 	uint32_t &blockSize;
 	uint32_t &blocksCount;
 
-	BlockStorageSuperblock(void *ptr);
+	BlockStorageSuperblock(Block *block);
+	~BlockStorageSuperblock();
+	void update();
 };
 
 class BlockStorage {
 protected:
 	int fd;
-	void *map;
-	size_t mapSize;
-
+	uint32_t blockSize;
 	char *filename;
 
-	void _extendFile(size_t newSize);
+	void _extendFile(off_t newSize);
 	off_t _fileSize();
+	void _gc();
 
-	bool needRemap;
-
+	std::map<uint32_t, Block *> blocksCache;
 public:
 	BlockStorageSuperblock *superblock;
 	BlockStorage(const char *filename);
@@ -40,14 +47,8 @@ public:
 
 	void create(size_t blockSize);
 	void load();
-	void flush();
-	void mmap(size_t mapSize);
-	void unmap();
-	void remap();
 
-	virtual void onRemap() = 0;
-
-	Block allocate();
-	Block get(uint32_t id);
+	Block *allocate();
+	Block *get(uint32_t id);
 };
 #endif

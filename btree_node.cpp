@@ -3,19 +3,29 @@
 #include <stdint.h>
 #include <sys/mman.h>
 #include <errno.h>
+#include <memory>
 
 #include "misc.hpp"
 #include "btree_node.hpp"
 
-UniqueBTreeNode::UniqueBTreeNode(UniqueBTree *tree, Block bl)
-	:tree(tree),
-	keys((uint32_t *)bl.ptr + 2),
+UniqueBTreeNode::UniqueBTreeNode(UniqueBTree *tree, Block *bl)
+	:block(bl),
+	tree(tree),
+	keys((uint32_t *)bl->ptr + 2),
 	childs(NULL),
-	isLeaf(*(uint32_t *)bl.ptr),
-	numKeys(*((uint32_t *)bl.ptr + 1)),
-	blockId(bl.id)
+	isLeaf(*(uint32_t *)bl->ptr),
+	numKeys(*((uint32_t *)bl->ptr + 1)),
+	blockId(bl->id)
 {
 	this->childs = (uint32_t *)((char*)this->keys + this->maxKeys() * this->tree->keySize);
+}
+
+UniqueBTreeNode::~UniqueBTreeNode() {
+	this->block->free();
+}
+
+void UniqueBTreeNode::update() {
+	this->block->update();
 }
 
 void UniqueBTreeNode::split(UniqueBTreeNode *right, void *key) {
@@ -33,6 +43,9 @@ void UniqueBTreeNode::split(UniqueBTreeNode *right, void *key) {
 	if(!this->isLeaf) {
 		memcpy(right->childs, this->childs + median + 1, (right->numKeys + 1) * sizeof(*right->childs));
 	}
+
+	this->update();
+	right->update();
 }
 
 bool UniqueBTreeNode::add(const void *key) {
@@ -58,17 +71,17 @@ bool UniqueBTreeNode::add(const void *key) {
 			t = searchInterval(this->keys, this->tree->keySize, this->numKeys, key);
 			if(t == -1)
 				return false;
-			UniqueBTreeNode n = this->tree->get(this->childs[t]);
+			std::auto_ptr<UniqueBTreeNode> n(this->tree->get(this->childs[t]));
 
 			try {
-				return n.add(key);
+				return n->add(key);
 			} catch(UniqueBTreeNode_NeedSplit e) {
 				if(this->numKeys >= this->maxKeys())
 					throw UniqueBTreeNode_NeedSplit();
 
 				UniqueBTreeNode right(this->tree, this->tree->allocate());
 				char newKey[this->tree->keySize];
-				n.split(&right, newKey);
+				n->split(&right, newKey);
 
 				insertInArray(this->keys, this->tree->keySize, this->numKeys, newKey, t);
 				this->numKeys++;
@@ -77,6 +90,8 @@ bool UniqueBTreeNode::add(const void *key) {
 			}
 		} while(true);
 	}
+
+	this->update();
 
 	return true;
 }
