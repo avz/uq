@@ -299,7 +299,7 @@ void usage() {
 
 const unsigned char *getHash(const char *string, int string_len) {
 	static unsigned char hashBuf[32];
-	char *lowerString = (char *)malloc(string_len);
+	char *lowerString = (char *)alloca(string_len);
 	strtolower(lowerString, string, string_len);
 
 	if(OPTS.urlMode) {
@@ -309,8 +309,6 @@ const unsigned char *getHash(const char *string, int string_len) {
 	} else {
 		MD5((const unsigned char *)lowerString, string_len, hashBuf);
 	}
-
-	free(lowerString);
 	return hashBuf;
 }
 
