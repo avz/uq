@@ -164,7 +164,6 @@ int main(int argc, char *argv[]) {
 	signal(SIGTERM, onSignal);
 
 	signal(SIGALRM, onAlarm);
-	onAlarm(SIGALRM);
 
 	UniqueBTree tree(filename);
 	tree.setCacheSize(OPTS.cacheSize);
@@ -177,6 +176,9 @@ int main(int argc, char *argv[]) {
 		tree.create(OPTS.blockSize);
 		fprintf(stderr, "New btree in %s with blockSize=%u was created\n", filename, tree.blockSize);
 	}
+
+	if(OPTS.verbose)
+		onAlarm(SIGALRM);
 
 	setlinebuf(stdin);
 	setlinebuf(stdout);

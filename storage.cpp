@@ -249,7 +249,7 @@ void BlockStorage::_gc(bool cleanAll) {
 	}
 
 	if(flushBuffer.size()) {
-		fprintf(stderr, "Dropped: %u (flushed: %u)\n", (unsigned int)deleted, (unsigned int)flushBuffer.size());
+		fprintf(stderr, "\nDropped: %u (flushed: %u)\n", (unsigned int)deleted, (unsigned int)flushBuffer.size());
 		std::sort(flushBuffer.begin(), flushBuffer.end(), blockcmp);
 
 		std::vector<Block *>::iterator vi;
