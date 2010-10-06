@@ -279,7 +279,7 @@ void onAlarm(int sig) {
 	if(lastCallTime > 0) {
 		fprintf(
 			stderr,
-			"\rSpeed [i/s]: %u avg, %u cur",
+			"\rSpeed [i/s]: %u avg, %u cur                  ",
 			(unsigned int)((STAT.lineNumber - firstCallLineNumber) / (gettimed() - firstCallTime)),
 			(unsigned int)((STAT.lineNumber - lastCallLineNumber) / (gettimed() - lastCallTime))
 		);
