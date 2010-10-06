@@ -22,6 +22,7 @@ struct options {
 	char urlMode;
 	char preSort;
 	char ignoreCase;
+	char verbose;
 	size_t preSortBufferSize;
 	size_t cacheSize;
 	size_t prefetchSize;
@@ -31,15 +32,21 @@ struct options {
 	int  choose_field;
 	char field_sep;
 };
+
+struct statistic {
+	size_t lineNumber;
+};
 /* ------------------------------------- */
 
 static struct options OPTS;
+static struct statistic STAT;
 
 void usage();
 const char *getHost(const char *url, size_t len);
 const unsigned char *getHash(const char *string, int string_len);
 int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len);
 void onSignal(int sig);
+void onAlarm(int sig);
 
 int main(int argc, char *argv[]) {
 	const char *filename = "";
@@ -51,8 +58,11 @@ int main(int argc, char *argv[]) {
 
 	char ch;
 
+	STAT.lineNumber = 0;
+
 	OPTS.blockSize = 4096*2;
 	OPTS.forceCreateNewDb = 0;
+	OPTS.verbose = 0;
 	OPTS.urlMode = 0;
 	OPTS.preSort = 0;
 	OPTS.ignoreCase = 0;
@@ -64,7 +74,7 @@ int main(int argc, char *argv[]) {
 	OPTS.choose_field   = 0;
 	OPTS.field_sep      = ';';
 
-	while ((ch = getopt(argc, argv, "sicub:t:S:f:d:m:p:")) != -1) {
+	while ((ch = getopt(argc, argv, "sicvub:t:S:f:d:m:p:")) != -1) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
@@ -96,6 +106,9 @@ int main(int argc, char *argv[]) {
 			break;
 			case 'u':
 				OPTS.urlMode = 1;
+			break;
+			case 'v':
+				OPTS.verbose = 1;
 			break;
 			case 'f':
 				OPTS.fields_enabled = 1;
@@ -150,6 +163,9 @@ int main(int argc, char *argv[]) {
 	signal(SIGPIPE, onSignal);
 	signal(SIGTERM, onSignal);
 
+	signal(SIGALRM, onAlarm);
+	onAlarm(SIGALRM);
+
 	UniqueBTree tree(filename);
 	tree.setCacheSize(OPTS.cacheSize);
 	tree.setPrefetchSize(OPTS.prefetchSize);
@@ -203,6 +219,8 @@ int main(int argc, char *argv[]) {
 			if(getStdinLine(line, sizeof(line), &line_ptr, &line_len) == 0)
 				break;
 
+			STAT.lineNumber++;
+
 			hash = getHash(line_ptr, line_len);
 
 			memcpy(newItem, hash, 8);
@@ -238,6 +256,8 @@ int main(int argc, char *argv[]) {
 
 	} else {
 		while(getStdinLine(line, sizeof(line), &line_ptr, &line_len)) {
+			STAT.lineNumber++;
+
 			if(tree.add(getHash(line_ptr, line_len)))
 				fputs(line, stdout);
 		}
@@ -248,6 +268,26 @@ int main(int argc, char *argv[]) {
 
 void onSignal(int sig) {
 	fclose(stdin);
+}
+
+void onAlarm(int sig) {
+	static double lastCallTime = -1;
+	static size_t lastCallLineNumber = -1;
+	static double firstCallTime = gettimed();
+	static size_t firstCallLineNumber = STAT.lineNumber;
+
+	if(lastCallTime > 0) {
+		fprintf(
+			stderr,
+			"\rSpeed [i/s]: %u avg, %u cur",
+			(unsigned int)((STAT.lineNumber - firstCallLineNumber) / (gettimed() - firstCallTime)),
+			(unsigned int)((STAT.lineNumber - lastCallLineNumber) / (gettimed() - lastCallTime))
+		);
+	}
+
+	lastCallLineNumber = STAT.lineNumber;
+	lastCallTime = gettimed();
+	alarm(1);
 }
 
 // returns 0 on EOF, 1 on success

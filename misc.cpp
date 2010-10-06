@@ -1,4 +1,5 @@
 #include <sys/types.h>
+#include <sys/time.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -62,4 +63,10 @@ char *strtolower(char *dst, const char *src, size_t len) {
 		dst[i] = tolower(src[i]);
 
 	return dst;
+}
+
+double gettimed() {
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return (double)tv.tv_sec + (double)tv.tv_usec / 1000000;
 }
