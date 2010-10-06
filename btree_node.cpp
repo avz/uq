@@ -58,13 +58,16 @@ bool UniqueBTreeNode::add(const void *key) {
 
 		if(this->numKeys) {
 			t = insertInSortedArray(this->keys, this->tree->keySize, this->numKeys, key);
-			if(t >= 0)
+			if(t >= 0) {
+				this->update();
 				this->numKeys++;
+			}
 
 			return t >= 0;
 		} else {
 			memcpy(this->keys, key, this->tree->keySize);
 			this->numKeys = 1;
+			this->update();
 		}
 	} else {
 		do {
@@ -87,11 +90,10 @@ bool UniqueBTreeNode::add(const void *key) {
 				this->numKeys++;
 
 				insertInArray(this->childs, sizeof(uint32_t), this->numKeys, &right.blockId, t + 1);
+				this->update();
 			}
 		} while(true);
 	}
-
-	this->update();
 
 	return true;
 }

@@ -14,6 +14,7 @@
 
 #include "btree.hpp"
 #include "misc.hpp"
+#include "storage.hpp"
 
 struct options {
 	size_t blockSize;
@@ -22,6 +23,8 @@ struct options {
 	char preSort;
 	char ignoreCase;
 	size_t preSortBufferSize;
+	size_t cacheSize;
+	size_t prefetchSize;
 
 	// fields control
 	int  fields_enabled;
@@ -43,6 +46,8 @@ int main(int argc, char *argv[]) {
 	unsigned long blockSize;
 	unsigned long preSortBufferSize;
 	unsigned long choose_field;
+	unsigned long cacheSize;
+	unsigned long prefetchSize;
 
 	char ch;
 
@@ -52,12 +57,14 @@ int main(int argc, char *argv[]) {
 	OPTS.preSort = 0;
 	OPTS.ignoreCase = 0;
 	OPTS.preSortBufferSize = 256;
+	OPTS.cacheSize = SIZE_T_MAX;
+
 	// fields control
 	OPTS.fields_enabled = 0;
 	OPTS.choose_field   = 0;
 	OPTS.field_sep      = ';';
 
-	while ((ch = getopt(argc, argv, "sicub:t:S:f:d:")) != -1) {
+	while ((ch = getopt(argc, argv, "sicub:t:S:f:d:m:p:")) != -1) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
@@ -100,6 +107,24 @@ int main(int argc, char *argv[]) {
 				}
 				OPTS.choose_field = choose_field;
 			break;
+			case 'm':
+				cacheSize = strtoul(optarg, NULL, 0);
+
+				if(cacheSize == ULONG_MAX || cacheSize > SIZE_T_MAX || cacheSize == 0) {
+					fputs("Cache size must be positive\n", stderr);
+					exit(255);
+				}
+				OPTS.cacheSize = (size_t)cacheSize;
+			break;
+			case 'p':
+				prefetchSize = strtoul(optarg, NULL, 0);
+
+				if(prefetchSize == ULONG_MAX || prefetchSize > SIZE_T_MAX || prefetchSize == 0) {
+					fputs("Prefetch size must be positive\n", stderr);
+					exit(255);
+				}
+				OPTS.prefetchSize = (size_t)prefetchSize;
+			break;
 			case 'd':
 				if(strlen(optarg) != 1) {
 					fputs("Field separator must be char\n", stderr);
@@ -126,6 +151,8 @@ int main(int argc, char *argv[]) {
 	signal(SIGTERM, onSignal);
 
 	UniqueBTree tree(filename);
+	tree.setCacheSize(OPTS.cacheSize);
+	tree.setPrefetchSize(OPTS.prefetchSize);
 
 	if(access(filename, R_OK | W_OK) == 0 && !OPTS.forceCreateNewDb) {
 		tree.load();

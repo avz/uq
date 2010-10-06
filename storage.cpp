@@ -4,24 +4,27 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 #include <strings.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <errno.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <vector>
+
 #include "storage.hpp"
 
 Block::Block(size_t blockSize) {
 	this->id = 0xffffffff;
 	this->refCount = 0;
-	this->needUpdate = true;
-	this->ptr = new char[blockSize];
-	bzero(this->ptr, blockSize);
+	this->needUpdate = false;
+	this->ptr = (char *)calloc(blockSize, 1);
 }
 
 Block::~Block() {
-	delete[] this->ptr;
+	::free(this->ptr);
 }
 
 void Block::update() {
@@ -50,10 +53,15 @@ void BlockStorageSuperblock::update() {
 /* -- */
 
 BlockStorage::BlockStorage(const char *filename)
-	:fd(-1), superblock(NULL)
+	:fd(-1),
+	blocksCacheSize(SIZE_T_MAX),
+	superblock(NULL)
 {
 	this->filename = new char[strlen(filename)+1];
 	strcpy(this->filename, filename);
+	blocksCacheCurrentSize = 0;
+	gcTimer = 1;
+	gcProbability = 1024;
 }
 
 BlockStorage::~BlockStorage() {
@@ -62,7 +70,10 @@ BlockStorage::~BlockStorage() {
 
 	this->superblock = NULL;
 
-	this->_gc();
+	fprintf(stderr, "Flush cached blocks ...");
+	this->setCacheSize(0);
+	this->_gc(true);
+	fprintf(stderr, " done\n");
 
 	delete[] this->filename;
 
@@ -100,10 +111,21 @@ void BlockStorage::load() {
 		perror("load:pread");
 		exit(errno);
 	}
-// 	fprintf(stderr, "block size: %u\n", this->blockSize);
-// 	exit(255);
 
 	this->superblock = new BlockStorageSuperblock(this->get(0));
+
+	if(this->superblock->blocksCount < this->prefetchSize)
+		this->prefetchSize = this->superblock->blocksCount;
+
+	if(this->blocksCacheSize < this->prefetchSize)
+		this->prefetchSize = this->blocksCacheSize;
+
+	fprintf(stderr, "Prefetch %u leading blocks ...", (unsigned int)this->prefetchSize);
+
+	for(size_t i=0; i<this->prefetchSize; i++) {
+		this->get(i)->free();
+	}
+	fprintf(stderr, " done\n");
 }
 
 Block *BlockStorage::allocate() {
@@ -114,10 +136,16 @@ Block *BlockStorage::allocate() {
 	b->id = this->superblock->blocksCount;
 
 // 	fprintf(stderr, "alloc %u\n", b->id);
-	this->blocksCache[b->id] = b;
+	this->blocksCache.push_back(b);
+	this->blocksCacheMap[b->id] = --this->blocksCache.end();
+	this->blocksCacheCurrentSize++;
 
 	this->superblock->blocksCount++;
 	this->superblock->update();
+
+	if(this->gcTimer % this->gcProbability == 0)
+		this->_gc();
+	this->gcTimer++;
 
 	return b;
 }
@@ -129,10 +157,14 @@ Block *BlockStorage::get(uint32_t id) {
 		exit(11);
 	}
 
-// 	this->_gc();
+	Block *b;
 
-	if(this->blocksCache.find(id) == this->blocksCache.end()) {
-		Block *b = new Block(this->blockSize);
+	if(this->blocksCacheMap.find(id) == this->blocksCacheMap.end()) {
+		if(this->gcTimer % this->gcProbability == 0)
+			this->_gc();
+		this->gcTimer++;
+
+		b = new Block(this->blockSize);
 		b->id = id;
 
 		off_t offset = id * this->blockSize;
@@ -143,12 +175,22 @@ Block *BlockStorage::get(uint32_t id) {
 				exit(errno ? errno : 255);
 			}
 		}
-		this->blocksCache[id] = b;
+
+		this->blocksCache.push_back(b);
+		this->blocksCacheMap[id] = --this->blocksCache.end();
+		++this->blocksCacheCurrentSize;
+	} else {
+		if(this->blocksCacheSize != SIZE_T_MAX) {
+			b = *this->blocksCacheMap[id];
+			this->blocksCache.erase(this->blocksCacheMap[id]);
+			this->blocksCache.push_back(b);
+			this->blocksCacheMap[id] = --this->blocksCache.end();
+		}
 	}
 
-	this->blocksCache[id]->refCount++;
+	(*this->blocksCacheMap[id])->refCount++;
 
-	return this->blocksCache[id];
+	return *this->blocksCacheMap[id];
 }
 
 void BlockStorage::_extendFile(off_t newSize) {
@@ -174,27 +216,57 @@ off_t BlockStorage::_fileSize() {
 	return s.st_size;
 }
 
-void BlockStorage::_gc() {
-	std::map<uint32_t, Block *>::iterator i = this->blocksCache.begin();
+static bool blockcmp(const Block * b1, const Block *b2) {
+	return b1->id < b2->id;
+}
 
-	while(i != this->blocksCache.end()) {
-// 		fprintf(stderr, "gc check %u\n", (unsigned int)i->second->id);
-		if(!i->second->refCount) {
-			if(i->second->needUpdate) {
-// 				fprintf(stderr, "writing %u\n", (unsigned int)i->second->id);
-				pwrite(this->fd, i->second->ptr, this->blockSize, i->second->id * this->blockSize);
+void BlockStorage::_gc(bool cleanAll) {
+// 	fprintf(stderr, "GC launch ... %u %u\n", this->blocksCacheCurrentSize, this->blocksCacheSize);
+	if(this->blocksCacheCurrentSize < this->blocksCacheSize)
+		return;
+
+// 	fprintf(stderr, "GC launch ...");
+	std::list<Block *>::iterator i = this->blocksCache.begin();
+	std::vector<Block *> flushBuffer;
+	size_t deleted = 0;
+
+	while(i != this->blocksCache.end() && this->blocksCacheCurrentSize > this->blocksCacheSize) {
+		Block *b = *i;
+		if(!b->refCount) {
+			i = this->blocksCache.erase(i);
+			this->blocksCacheMap.erase(b->id);
+			--this->blocksCacheCurrentSize;
+			deleted++;
+
+			if(b->needUpdate) {
+				flushBuffer.push_back(b);
+			} else {
+				delete b;
 			}
-			delete i->second;
-			this->blocksCache.erase(i++);
 		} else {
 			++i;
 		}
 	}
-/*
-	i = this->blocksCache.begin();
-	while(i != this->blocksCache.end()) {
-		fprintf(stderr, "reachable %u [%u]\n", (unsigned int)i->second->id, (unsigned int)i->second->refCount);
-		++i;
-	}*/
+
+	if(flushBuffer.size()) {
+		fprintf(stderr, "Dropped: %u (flushed: %u)\n", (unsigned int)deleted, (unsigned int)flushBuffer.size());
+		std::sort(flushBuffer.begin(), flushBuffer.end(), blockcmp);
+
+		std::vector<Block *>::iterator vi;
+
+		for(vi=flushBuffer.begin(); vi!=flushBuffer.end(); ++vi) {
+			Block *b = *vi;
+			pwrite(this->fd, b->ptr, this->blockSize, b->id * this->blockSize);
+			delete b;
+		}
+		fprintf(stderr, "done\n");
+	}
 }
 
+void BlockStorage::setCacheSize(size_t size) {
+	this->blocksCacheSize = size;
+}
+
+void BlockStorage::setPrefetchSize(size_t size) {
+	this->prefetchSize= size;
+}
