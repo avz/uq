@@ -21,8 +21,7 @@ UniqueBTreeNode::UniqueBTreeNode(UniqueBTree *tree, Block *bl)
 }
 
 UniqueBTreeNode::~UniqueBTreeNode() {
-	if(this->isLeaf)
-		this->block->free();
+	this->block->free();
 }
 
 void UniqueBTreeNode::update() {

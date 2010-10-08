@@ -230,19 +230,33 @@ void BlockStorage::_gc(bool cleanAll) {
 	std::vector<Block *> flushBuffer;
 	size_t deleted = 0;
 
+	/* 1 stage: delete clean blocks */
 	while(i != this->blocksCache.end() && this->blocksCacheCurrentSize > this->blocksCacheSize) {
 		Block *b = *i;
-		if(!b->refCount || cleanAll) {
+		if(!b->needUpdate && (!b->refCount || cleanAll)) {
 			i = this->blocksCache.erase(i);
 			this->blocksCacheMap.erase(b->id);
 			--this->blocksCacheCurrentSize;
 			deleted++;
 
-			if(b->needUpdate) {
-				flushBuffer.push_back(b);
-			} else {
-				delete b;
-			}
+			delete b;
+		} else {
+			++i;
+		}
+	}
+
+	/* 2 stage: delete dirty blocks */
+	i = this->blocksCache.begin();
+
+	while(i != this->blocksCache.end() && this->blocksCacheCurrentSize > this->blocksCacheSize) {
+		Block *b = *i;
+		if(b->needUpdate && (!b->refCount || cleanAll)) {
+			i = this->blocksCache.erase(i);
+			this->blocksCacheMap.erase(b->id);
+			--this->blocksCacheCurrentSize;
+			deleted++;
+
+			flushBuffer.push_back(b);
 		} else {
 			++i;
 		}
