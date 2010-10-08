@@ -47,13 +47,14 @@ const unsigned char *getHash(const char *string, int string_len);
 int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len);
 void onSignal(int sig);
 void onAlarm(int sig);
+size_t parseSize(const char *str);
 
 int main(int argc, char *argv[]) {
 	const char *filename = "";
 	unsigned long blockSize;
 	unsigned long preSortBufferSize;
 	unsigned long choose_field;
-	unsigned long cacheSize;
+	size_t cacheSize;
 	unsigned long prefetchSize;
 
 	char ch;
@@ -121,13 +122,13 @@ int main(int argc, char *argv[]) {
 				OPTS.choose_field = choose_field;
 			break;
 			case 'm':
-				cacheSize = strtoul(optarg, NULL, 0);
+				cacheSize = parseSize(optarg);
 
-				if(cacheSize == ULONG_MAX || cacheSize > SIZE_T_MAX || cacheSize == 0) {
+				if(cacheSize == SIZE_T_MAX) {
 					fputs("Cache size must be positive\n", stderr);
 					exit(255);
 				}
-				OPTS.cacheSize = (size_t)cacheSize;
+				OPTS.cacheSize = cacheSize;
 			break;
 			case 'p':
 				prefetchSize = strtoul(optarg, NULL, 0);
@@ -166,15 +167,14 @@ int main(int argc, char *argv[]) {
 	signal(SIGALRM, onAlarm);
 
 	UniqueBTree tree(filename);
-	tree.setCacheSize(OPTS.cacheSize);
 	tree.setPrefetchSize(OPTS.prefetchSize);
 
 	if(access(filename, R_OK | W_OK) == 0 && !OPTS.forceCreateNewDb) {
 		tree.load();
-		fprintf(stderr, "Btree from %s with blockSize=%u was loaded\n", filename, tree.blockSize);
+		fprintf(stderr, "Btree from %s with blockSize=%u was loaded\n", filename, (unsigned int)tree.blockSize);
 	} else {
 		tree.create(OPTS.blockSize);
-		fprintf(stderr, "New btree in %s with blockSize=%u was created\n", filename, tree.blockSize);
+		fprintf(stderr, "New btree in %s with blockSize=%u was created\n", filename, (unsigned int)tree.blockSize);
 	}
 
 	if(OPTS.verbose)
@@ -186,6 +186,13 @@ int main(int argc, char *argv[]) {
 	char line[1024];
 	char *line_ptr;
 	int   line_len;
+
+	if(OPTS.cacheSize < tree.blockSize) {
+		fprintf(stderr, "Cache size must be >=blockSize [%u]\n", (unsigned int)tree.blockSize);
+		exit(255);
+	}
+
+	tree.setCacheSize(OPTS.cacheSize / tree.blockSize);
 
 	if(OPTS.preSort) {
 		char *preSortBuffer;
@@ -254,7 +261,7 @@ int main(int argc, char *argv[]) {
 				fputs(lineS, stdout);
 			free(lineS);
 		}
-		preSortBufferCurrentSize = 0;
+// 		preSortBufferCurrentSize = 0;
 
 	} else {
 		while(getStdinLine(line, sizeof(line), &line_ptr, &line_len)) {
@@ -294,7 +301,7 @@ void onAlarm(int sig) {
 
 // returns 0 on EOF, 1 on success
 int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len){
-	int eol, curr_field;
+	int curr_field;
 	char *curr, *next;
 
 	do{
@@ -308,11 +315,10 @@ int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len){
 		}
 
 		curr = buf;
-		eol  = 0;
 		curr_field = 1;
 		do{
 			next = strchr(curr, OPTS.field_sep);
-			if(next == NULL){
+			if(!next){
 				if(curr_field == OPTS.choose_field){
 					*line_start = curr;
 					*line_len   = strlen(curr) - 1;
@@ -387,6 +393,38 @@ const unsigned char *getHash(const char *string, int string_len) {
 		MD5((const unsigned char *)str, string_len, hashBuf);
 	}
 	return hashBuf;
+}
+
+size_t parseSize(const char *str) {
+	char mul[] = {'b', 'k', 'm', 'g', 't', 'p', 'e', 'z', 'y'};
+	char *inv;
+	unsigned long l = strtoul(str, &inv, 0);
+
+	if(l == ULONG_MAX)
+		return SIZE_T_MAX;
+
+	if(*inv != '\0') {
+		size_t i;
+		bool founded = false;
+		for(i=0; i<sizeof(mul); i++) {
+			if(tolower(*inv) == mul[i]) {
+				l <<= 10 * i;
+				founded = true;
+				break;
+			}
+		}
+
+		if(!founded)
+			return SIZE_T_MAX;
+
+		if(*(inv + 1) != '\0' && tolower(*(inv + 1)) != 'b')
+			return SIZE_T_MAX;
+	}
+
+	if(l > SIZE_T_MAX)
+		return SIZE_T_MAX;
+
+	return (size_t)l;
 }
 
 /* THE END */

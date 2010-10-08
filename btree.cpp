@@ -25,7 +25,9 @@ void UniqueBTreeSuperblock::update() {
 UniqueBTree::UniqueBTree(const char *filename)
 	:BlockStorage(filename),
 	root(NULL),
-	superblock(NULL)
+	superblock(NULL),
+	keySize(8),
+	blockSize(4096*2)
 {
 }
 
@@ -41,7 +43,7 @@ void UniqueBTree::create(size_t blockSize) {
 	BlockStorage::create(blockSize);
 
 	this->superblock = new UniqueBTreeSuperblock(this->allocate());
-	this->superblock->keySize = 8;
+	this->keySize = this->superblock->keySize = 8;
 
 	this->root = new UniqueBTreeNode(this, this->allocate());
 	this->root->isLeaf = 1;
@@ -53,7 +55,6 @@ void UniqueBTree::create(size_t blockSize) {
 	this->root->update();
 
 	this->blockSize = BlockStorage::superblock->blockSize;
-	this->keySize = this->superblock->keySize;
 }
 
 void UniqueBTree::load() {
