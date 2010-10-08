@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
 			case 'S':
 				preSortBufferSize = strtoul(optarg, NULL, 0);
 				if(preSortBufferSize < 2 || preSortBufferSize == ULONG_MAX) {
-					fputs("Pre-sort fuffer size must be >2\n", stderr);
+					fputs("Pre-sort buffer size must be >2\n", stderr);
 					exit(255);
 				}
 				OPTS.preSortBufferSize = preSortBufferSize;

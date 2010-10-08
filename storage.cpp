@@ -61,7 +61,7 @@ BlockStorage::BlockStorage(const char *filename)
 	strcpy(this->filename, filename);
 	blocksCacheCurrentSize = 0;
 	gcTimer = 1;
-	gcProbability = 1024;
+	gcProbability = 4096;
 }
 
 BlockStorage::~BlockStorage() {
