@@ -92,11 +92,6 @@ void BlockStorage::create(size_t blockSize) {
 		exit(errno);
 	}
 
-	if(fcntl(this->fd, O_NONBLOCK) == -1) {
-		perror("fcntl");
-		exit(errno);
-	}
-
 	this->_extendFile(blockSize);
 
 	this->superblock = new BlockStorageSuperblock(this->get(0));
@@ -237,7 +232,7 @@ void BlockStorage::_gc(bool cleanAll) {
 
 	while(i != this->blocksCache.end() && this->blocksCacheCurrentSize > this->blocksCacheSize) {
 		Block *b = *i;
-		if(!b->refCount) {
+		if(!b->refCount || cleanAll) {
 			i = this->blocksCache.erase(i);
 			this->blocksCacheMap.erase(b->id);
 			--this->blocksCacheCurrentSize;
