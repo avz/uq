@@ -206,7 +206,7 @@ int main(int argc, char *argv[]) {
 // 				fputs(" == Flushing sort buffer ... done\n", stderr);
 			}
 #else
-			if(sortBuf.size() >= OPTS.preSortBufferSize) {
+			while(sortBuf.size() >= OPTS.preSortBufferSize) {
 				if(tree.add(sortBuf.begin()->first.c_str())) {
 // 					printDump(stderr, sortBuf.begin()->first.c_str(), 8);
 // 					fputs("\n", stderr);
@@ -225,7 +225,7 @@ int main(int argc, char *argv[]) {
 			const char *hash = (const char *)getHash(line_ptr, line_len);
 
 			if(sortBuf.find(hash) == sortBuf.end()) {
-				sortBuf[hash] = line;
+				sortBuf.insert(std::pair<std::string, std::string>(std::string(hash, 8), line));
 			}
 		}
 
