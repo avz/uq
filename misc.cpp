@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -69,4 +70,10 @@ double gettimed() {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	return (double)tv.tv_sec + (double)tv.tv_usec / 1000000;
+}
+
+void printDump(FILE *fd, const char *buf, size_t bufLen) {
+	size_t i;
+	for(i=0; i<bufLen; i++)
+		fprintf(fd, "%02hhx ", buf[i]);
 }

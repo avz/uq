@@ -12,6 +12,9 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+#include <map>
+#include <string>
+
 #include "btree.hpp"
 #include "misc.hpp"
 #include "storage.hpp"
@@ -79,10 +82,9 @@ int main(int argc, char *argv[]) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
-				if(blockSize < 32 || blockSize == ULONG_MAX) {
-					fputs("Block size must be >32\n", stderr);
-					exit(255);
-				}
+				if(blockSize < 32 || blockSize == ULONG_MAX)
+					fatal_input("Block size must be >32\n");
+
 				OPTS.blockSize = blockSize;
 			break;
 			case 't':
@@ -99,10 +101,9 @@ int main(int argc, char *argv[]) {
 			break;
 			case 'S':
 				preSortBufferSize = strtoul(optarg, NULL, 0);
-				if(preSortBufferSize < 2 || preSortBufferSize == ULONG_MAX) {
-					fputs("Pre-sort buffer size must be >2\n", stderr);
-					exit(255);
-				}
+				if(preSortBufferSize < 2 || preSortBufferSize == ULONG_MAX)
+					fatal_input("Pre-sort buffer size must be >2");
+
 				OPTS.preSortBufferSize = preSortBufferSize;
 			break;
 			case 'u':
@@ -115,35 +116,29 @@ int main(int argc, char *argv[]) {
 				OPTS.fields_enabled = 1;
 				choose_field = strtoul(optarg, NULL, 0);
 
-				if(choose_field == ULONG_MAX || choose_field > INT_MAX) {
-					fputs("Field must be int\n", stderr);
-					exit(255);
-				}
-				OPTS.choose_field = choose_field;
+				if(choose_field == ULONG_MAX || choose_field > INT_MAX)
+					fatal_input("Field must be int");
 			break;
 			case 'm':
 				cacheSize = parseSize(optarg);
 
-				if(cacheSize == SIZE_T_MAX) {
-					fputs("Cache size must be positive\n", stderr);
-					exit(255);
-				}
+				if(cacheSize == SIZE_T_MAX)
+					fatal_input("Cache size must be positive");
+
 				OPTS.cacheSize = cacheSize;
 			break;
 			case 'p':
 				prefetchSize = strtoul(optarg, NULL, 0);
 
-				if(prefetchSize == ULONG_MAX || prefetchSize > SIZE_T_MAX || prefetchSize == 0) {
-					fputs("Prefetch size must be positive\n", stderr);
-					exit(255);
-				}
+				if(prefetchSize == ULONG_MAX || prefetchSize > SIZE_T_MAX || prefetchSize == 0)
+					fatal_input("Prefetch size must be positive");
+
 				OPTS.prefetchSize = (size_t)prefetchSize;
 			break;
 			case 'd':
-				if(strlen(optarg) != 1) {
-					fputs("Field separator must be char\n", stderr);
-					exit(255);
-				}
+				if(strlen(optarg) != 1)
+					fatal_input("Field separator must be char");
+
 				OPTS.field_sep      = *(char *)optarg;
 			break;
 			case '?':
@@ -195,73 +190,50 @@ int main(int argc, char *argv[]) {
 	tree.setCacheSize(OPTS.cacheSize / tree.blockSize);
 
 	if(OPTS.preSort) {
-		char *preSortBuffer;
-		size_t preSortBufferCurrentSize = 0;
-		size_t i;
-		size_t itemSize = 8 + sizeof(void *);
-
-		if(!(preSortBuffer = (char *)calloc(OPTS.preSortBufferSize, itemSize))) {
-			perror("calloc");
-			exit(errno);
-		}
+		std::map<std::string, std::string> sortBuf;
+		std::map<std::string, std::string>::iterator i;
 
 		while(1) {
-			char newItem[8 + sizeof(void *)];
-			const unsigned char *hash;
-			off_t index;
-
-			if(preSortBufferCurrentSize >= OPTS.preSortBufferSize) {
-				char *popedItem = preSortBuffer + (preSortBufferCurrentSize - 1) * itemSize;
-				char *lineS;
-				char **ptr;
-
-				ptr = (char **)(popedItem + 8);
-				lineS = *ptr;
-
-				if(tree.add(popedItem))
-					fputs(lineS, stdout);
-
-				free(lineS);
-				preSortBufferCurrentSize--;
+#define SORT_BUFFER_FULL_FLUSH
+#ifdef SORT_BUFFER_FULL_FLUSH
+			if(sortBuf.size() >= OPTS.preSortBufferSize) {
+// 				fputs(" ++ Flushing sort buffer ...\n", stderr);
+				for(i=sortBuf.begin(); i!=sortBuf.end(); ++i) {
+					if(tree.add(i->first.c_str()))
+						fputs(i->second.c_str(), stdout);
+				}
+				sortBuf.clear();
+// 				fputs(" == Flushing sort buffer ... done\n", stderr);
 			}
+#else
+			if(sortBuf.size() >= OPTS.preSortBufferSize) {
+				if(tree.add(sortBuf.begin()->first.c_str())) {
+// 					printDump(stderr, sortBuf.begin()->first.c_str(), 8);
+// 					fputs("\n", stderr);
+					fputs(sortBuf.begin()->second.c_str(), stdout);
+				}
+
+				sortBuf.erase(sortBuf.begin());
+			}
+#endif
 
 			if(getStdinLine(line, sizeof(line), &line_ptr, &line_len) == 0)
 				break;
 
 			STAT.lineNumber++;
 
-			hash = getHash(line_ptr, line_len);
+			const char *hash = (const char *)getHash(line_ptr, line_len);
 
-			memcpy(newItem, hash, 8);
-
-			if(preSortBufferCurrentSize) {
-				index = insertInSortedArray(preSortBuffer, itemSize, preSortBufferCurrentSize, newItem);
-			} else {
-				memcpy(preSortBuffer, newItem, itemSize);
-				index = 0;
-			}
-
-			if(index != -1) {
-				char *t = preSortBuffer + index * itemSize;
-				char *lineS = (char *)malloc(strlen(line) + 1);
-				char **ptr = (char **)(t + 8);
-				strcpy(lineS, line);
-				*ptr = lineS;
-
-				preSortBufferCurrentSize++;
+			if(sortBuf.find(hash) == sortBuf.end()) {
+				sortBuf[hash] = line;
 			}
 		}
 
-		for(i=0; i<preSortBufferCurrentSize; i++) {
-			char *t = preSortBuffer + i * itemSize;
-			char **ptr = (char **)(t + 8);
-			char *lineS = *ptr;
-
-			if(tree.add(t))
-				fputs(lineS, stdout);
-			free(lineS);
+		for(i=sortBuf.begin(); i!=sortBuf.end(); ++i) {
+			if(tree.add(i->first.c_str()))
+				fputs(i->second.c_str(), stdout);
 		}
-// 		preSortBufferCurrentSize = 0;
+		sortBuf.clear();
 
 	} else {
 		while(getStdinLine(line, sizeof(line), &line_ptr, &line_len)) {

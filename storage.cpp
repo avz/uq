@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "storage.hpp"
+#include "misc.hpp"
 
 Block::Block(size_t blockSize) {
 	this->id = 0xffffffff;
@@ -61,7 +62,7 @@ BlockStorage::BlockStorage(const char *filename)
 	strcpy(this->filename, filename);
 	blocksCacheCurrentSize = 0;
 	gcTimer = 1;
-	gcProbability = 4096;
+	gcProbability = 2048;
 }
 
 BlockStorage::~BlockStorage() {
@@ -194,15 +195,40 @@ Block *BlockStorage::get(uint32_t id) {
 }
 
 void BlockStorage::_extendFile(off_t newSize) {
+#define PREALLOC_ENABLED
+#ifdef PREALLOC_ENABLED
+	ssize_t blockSize = 4096;
+	off_t oldSize = this->_fileSize();
+	if(oldSize < newSize) {
+		char *zero;
+		ssize_t i;
+		newSize -= newSize % 1024*1024;
+		newSize += 1024*1024;
+		zero = (char *)alloca(blockSize);
+		bzero(zero, blockSize);
+
+		if(lseek(this->fd, 0, SEEK_END) < 0)
+			fatal("lseek");
+
+		for(i=0; i<(newSize - oldSize)/blockSize; i++) {
+			if(write(this->fd, zero, blockSize) != blockSize)
+				fatal("write");
+		}
+
+		if((newSize - oldSize) % blockSize) {
+			if(write(this->fd, zero, (newSize - oldSize)%blockSize) != (newSize - oldSize)%blockSize)
+				fatal("write");
+		}
+	}
+#else
 	if(this->_fileSize() < newSize) {
 		newSize -= newSize % 1024*1024;
 		newSize += 1024*1024;
 
-		if(ftruncate(this->fd, newSize) < 0) {
-			perror("truncate");
-			exit(errno);
-		}
+		if(ftruncate(this->fd, newSize) < 0)
+			fatal("truncate");
 	}
+#endif
 }
 
 off_t BlockStorage::_fileSize() {
