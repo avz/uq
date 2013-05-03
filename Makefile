@@ -2,13 +2,13 @@ CC=g++
 LD=$(CC)
 CFLAGS= -c -O2 -Wall -I/usr/local/include -g
 LDFLAGS= -L/usr/local/lib
-LIBS=-lssl
+LIBS=-lssl -lcrypto
 
 PROJ=uniq
 
 OBJS=btree.o btree_node.o main.o misc.o storage.o
 
-all: $(PROJ)
+build: $(PROJ)
 
 $(PROJ): $(OBJS)
 	$(LD) $(LDFLAGS) $(OBJS) $(LIBS) -o "$(PROJ)"

@@ -23,17 +23,13 @@ struct options {
 	size_t blockSize;
 	char forceCreateNewDb;
 	char urlMode;
-	char preSort;
-	char ignoreCase;
 	char verbose;
-	size_t preSortBufferSize;
 	size_t cacheSize;
 	size_t prefetchSize;
 
 	// fields control
-	int  fields_enabled;
-	int  choose_field;
-	char field_sep;
+	int keyField;
+	int keyFieldSeparator;
 };
 
 struct statistic {
@@ -55,8 +51,7 @@ size_t parseSize(const char *str);
 int main(int argc, char *argv[]) {
 	const char *filename = "";
 	unsigned long blockSize;
-	unsigned long preSortBufferSize;
-	unsigned long choose_field;
+	unsigned long keyField;
 	size_t cacheSize;
 	unsigned long prefetchSize;
 
@@ -68,22 +63,18 @@ int main(int argc, char *argv[]) {
 	OPTS.forceCreateNewDb = 0;
 	OPTS.verbose = 0;
 	OPTS.urlMode = 0;
-	OPTS.preSort = 0;
-	OPTS.ignoreCase = 0;
-	OPTS.preSortBufferSize = 256;
 	OPTS.cacheSize = SIZE_T_MAX;
 
 	// fields control
-	OPTS.fields_enabled = 0;
-	OPTS.choose_field   = 0;
-	OPTS.field_sep      = ';';
+	OPTS.keyField   = 0;
+	OPTS.keyFieldSeparator      = ',';
 
 	while ((ch = getopt(argc, argv, "sicvub:t:S:f:d:m:p:")) != -1) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
 				if(blockSize < 32 || blockSize == ULONG_MAX)
-					fatal_input("Block size must be >32\n");
+					fatalInUserOptions("Block size must be >32\n");
 
 				OPTS.blockSize = blockSize;
 			break;
@@ -93,19 +84,6 @@ int main(int argc, char *argv[]) {
 			case 'c':
 				OPTS.forceCreateNewDb = 1;
 			break;
-			case 's':
-				OPTS.preSort = 1;
-			break;
-			case 'i':
-				OPTS.ignoreCase = 1;
-			break;
-			case 'S':
-				preSortBufferSize = strtoul(optarg, NULL, 0);
-				if(preSortBufferSize < 2 || preSortBufferSize == ULONG_MAX)
-					fatal_input("Pre-sort buffer size must be >2");
-
-				OPTS.preSortBufferSize = preSortBufferSize;
-			break;
 			case 'u':
 				OPTS.urlMode = 1;
 			break;
@@ -113,17 +91,18 @@ int main(int argc, char *argv[]) {
 				OPTS.verbose = 1;
 			break;
 			case 'f':
-				OPTS.fields_enabled = 1;
-				choose_field = strtoul(optarg, NULL, 0);
+				keyField = strtoul(optarg, NULL, 0);
 
-				if(choose_field == ULONG_MAX || choose_field > INT_MAX)
-					fatal_input("Field must be int");
+				if(keyField == ULONG_MAX || keyField > INT_MAX)
+					fatalInUserOptions("Field must be int");
+
+				OPTS.keyField = keyField;
 			break;
 			case 'm':
 				cacheSize = parseSize(optarg);
 
 				if(cacheSize == SIZE_T_MAX)
-					fatal_input("Cache size must be positive");
+					fatalInUserOptions("Cache size must be positive");
 
 				OPTS.cacheSize = cacheSize;
 			break;
@@ -131,15 +110,15 @@ int main(int argc, char *argv[]) {
 				prefetchSize = strtoul(optarg, NULL, 0);
 
 				if(prefetchSize == ULONG_MAX || prefetchSize > SIZE_T_MAX || prefetchSize == 0)
-					fatal_input("Prefetch size must be positive");
+					fatalInUserOptions("Prefetch size must be positive");
 
 				OPTS.prefetchSize = (size_t)prefetchSize;
 			break;
 			case 'd':
 				if(strlen(optarg) != 1)
-					fatal_input("Field separator must be char");
+					fatalInUserOptions("Field separator must be char");
 
-				OPTS.field_sep      = *(char *)optarg;
+				OPTS.keyFieldSeparator      = *(char *)optarg;
 			break;
 			case '?':
 			default:
@@ -166,10 +145,14 @@ int main(int argc, char *argv[]) {
 
 	if(access(filename, R_OK | W_OK) == 0 && !OPTS.forceCreateNewDb) {
 		tree.load();
-		fprintf(stderr, "Btree from %s with blockSize=%u was loaded\n", filename, (unsigned int)tree.blockSize);
+
+		if(OPTS.verbose)
+			fprintf(stderr, "Btree from %s with blockSize=%u was loaded\n", filename, (unsigned int)tree.blockSize);
 	} else {
 		tree.create(OPTS.blockSize);
-		fprintf(stderr, "New btree in %s with blockSize=%u was created\n", filename, (unsigned int)tree.blockSize);
+
+		if(OPTS.verbose)
+			fprintf(stderr, "New btree in %s with blockSize=%u was created\n", filename, (unsigned int)tree.blockSize);
 	}
 
 	if(OPTS.verbose)
@@ -179,8 +162,8 @@ int main(int argc, char *argv[]) {
 	setlinebuf(stdout);
 
 	char line[1024];
-	char *line_ptr;
-	int   line_len;
+	char *linePtr;
+	int   lineLen;
 
 	if(OPTS.cacheSize < tree.blockSize) {
 		fprintf(stderr, "Cache size must be >=blockSize [%u]\n", (unsigned int)tree.blockSize);
@@ -189,59 +172,11 @@ int main(int argc, char *argv[]) {
 
 	tree.setCacheSize(OPTS.cacheSize / tree.blockSize);
 
-	if(OPTS.preSort) {
-		std::map<std::string, std::string> sortBuf;
-		std::map<std::string, std::string>::iterator i;
+	while(getStdinLine(line, sizeof(line), &linePtr, &lineLen)) {
+		STAT.lineNumber++;
 
-		while(1) {
-#define SORT_BUFFER_FULL_FLUSH
-#ifdef SORT_BUFFER_FULL_FLUSH
-			if(sortBuf.size() >= OPTS.preSortBufferSize) {
-// 				fputs(" ++ Flushing sort buffer ...\n", stderr);
-				for(i=sortBuf.begin(); i!=sortBuf.end(); ++i) {
-					if(tree.add(i->first.c_str()))
-						fputs(i->second.c_str(), stdout);
-				}
-				sortBuf.clear();
-// 				fputs(" == Flushing sort buffer ... done\n", stderr);
-			}
-#else
-			while(sortBuf.size() >= OPTS.preSortBufferSize) {
-				if(tree.add(sortBuf.begin()->first.c_str())) {
-// 					printDump(stderr, sortBuf.begin()->first.c_str(), 8);
-// 					fputs("\n", stderr);
-					fputs(sortBuf.begin()->second.c_str(), stdout);
-				}
-
-				sortBuf.erase(sortBuf.begin());
-			}
-#endif
-
-			if(getStdinLine(line, sizeof(line), &line_ptr, &line_len) == 0)
-				break;
-
-			STAT.lineNumber++;
-
-			const char *hash = (const char *)getHash(line_ptr, line_len);
-
-			if(sortBuf.find(hash) == sortBuf.end()) {
-				sortBuf.insert(std::pair<std::string, std::string>(std::string(hash, 8), line));
-			}
-		}
-
-		for(i=sortBuf.begin(); i!=sortBuf.end(); ++i) {
-			if(tree.add(i->first.c_str()))
-				fputs(i->second.c_str(), stdout);
-		}
-		sortBuf.clear();
-
-	} else {
-		while(getStdinLine(line, sizeof(line), &line_ptr, &line_len)) {
-			STAT.lineNumber++;
-
-			if(tree.add(getHash(line_ptr, line_len)))
-				fputs(line, stdout);
-		}
+		if(tree.add(getHash(linePtr, lineLen)))
+			fputs(line, stdout);
 	}
 
 	return EXIT_SUCCESS;
@@ -272,42 +207,43 @@ void onAlarm(int sig) {
 }
 
 // returns 0 on EOF, 1 on success
-int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len){
-	int curr_field;
-	char *curr, *next;
+int getStdinLine(char *buf, int bufSize, char **lineStart, int *lineLen){
+	int curField;
+	char *cur, *next;
 
-	do{
-		if(!fgets(buf, buf_size, stdin))
+	do {
+		if(!fgets(buf, bufSize, stdin))
 			return 0;
 
-		if(OPTS.fields_enabled == 0){
-			*line_start = buf;
-			*line_len   = strlen(buf);
+		if(OPTS.keyField == -1){
+			*lineStart = buf;
+			*lineLen = strlen(buf);
 			return 1;
 		}
 
-		curr = buf;
-		curr_field = 1;
-		do{
-			next = strchr(curr, OPTS.field_sep);
+		cur = buf;
+		curField = 1;
+		do {
+			next = strchr(cur, OPTS.keyFieldSeparator);
 			if(!next){
-				if(curr_field == OPTS.choose_field){
-					*line_start = curr;
-					*line_len   = strlen(curr) - 1;
+				if(curField == OPTS.keyField){
+					*lineStart = cur;
+					*lineLen = strlen(cur) - 1;
 					return 1;
 				}
 				break;
 			}
 
-			if(curr_field == OPTS.choose_field){
-				*line_start = curr;
-				*line_len   = next - curr;
+			if(curField == OPTS.keyField){
+				*lineStart = cur;
+				*lineLen = next - cur;
 				return 1;
 			}
-			curr = next + 1; // skip field sep
-			curr_field++;
-		}while(curr);
-	}while(1);
+
+			cur = next + 1; // skip field sep
+			curField++;
+		} while(cur);
+	} while(1);
 }
 
 const char *getHost(const char *url, size_t len) {
@@ -335,35 +271,26 @@ const char *getHost(const char *url, size_t len) {
 }
 
 void usage() {
-	fputs("Usage: uniq [-uc] [-S bufSize] [-b blockSize] -t btreeFile\n", stderr);
+	fputs("Usage: uniq [-uc] -t btreeFile\n", stderr);
 	fputs("\n", stderr);
 	fputs("  -u        url mode\n", stderr);
-	fputs("  -s        pre-sort input\n", stderr);
-	fputs("  -S        pre-sort buffer size\n", stderr);
 	fputs("  -f        select field\n", stderr);
 	fputs("  -d        use given delimiter instead of ';'\n", stderr);
-	fputs("  -i        ignore case\n", stderr);
 }
 
 const unsigned char *getHash(const char *string, int string_len) {
 	static unsigned char hashBuf[32];
-	const char *str;
 
-	if(OPTS.ignoreCase) {
-		str = (char *)alloca(string_len);
-		strtolower((char *)str, string, string_len);
-	} else {
-		str = string;
-	}
-
+	string = string;
 
 	if(OPTS.urlMode) {
-		const char *host = getHost(str, string_len);
+		const char *host = getHost(string, string_len);
 		MD5((const unsigned char *)host, strlen(host), hashBuf);
-		MD5((const unsigned char *)str, string_len, hashBuf+3);
+		MD5((const unsigned char *)string, string_len, hashBuf + 3);
 	} else {
-		MD5((const unsigned char *)str, string_len, hashBuf);
+		MD5((const unsigned char *)string, string_len, hashBuf);
 	}
+
 	return hashBuf;
 }
 

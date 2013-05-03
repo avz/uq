@@ -21,7 +21,8 @@ UniqueBTreeNode::UniqueBTreeNode(UniqueBTree *tree, Block *bl)
 }
 
 UniqueBTreeNode::~UniqueBTreeNode() {
-	this->block->free();
+	if(this->isLeaf || this->block->needUpdate)
+		this->block->free();
 }
 
 void UniqueBTreeNode::update() {
@@ -29,7 +30,6 @@ void UniqueBTreeNode::update() {
 }
 
 void UniqueBTreeNode::split(UniqueBTreeNode *right, void *key) {
-// 	fprintf(stderr, "%u / %u\n", numKeys, maxKeys());
 	uint32_t median = this->numKeys / 2;
 	char *t = (char *)this->keys + median * this->tree->keySize;
 
@@ -50,7 +50,7 @@ void UniqueBTreeNode::split(UniqueBTreeNode *right, void *key) {
 
 bool UniqueBTreeNode::add(const void *key) {
 	off_t t;
-// fprintf(stderr, "max keys: %u\n", this->maxKeys());
+
 	if(this->isLeaf) {
 		if(this->numKeys >= this->maxKeys()) {
 			throw UniqueBTreeNode_NeedSplit();
