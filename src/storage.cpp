@@ -71,10 +71,8 @@ BlockStorage::~BlockStorage() {
 
 	this->superblock = NULL;
 
-	fprintf(stderr, "Flush cached blocks ...");
 	this->setCacheSize(0);
 	this->_gc(true);
-	fprintf(stderr, " done\n");
 
 	delete[] this->filename;
 
@@ -121,12 +119,9 @@ void BlockStorage::load() {
 	if(this->blocksCacheSize < this->prefetchSize)
 		this->prefetchSize = this->blocksCacheSize;
 
-	fprintf(stderr, "Prefetch %u leading blocks ...", (unsigned int)this->prefetchSize);
-
 	for(size_t i=0; i<this->prefetchSize; i++) {
 		this->get(i)->free();
 	}
-	fprintf(stderr, " done\n");
 }
 
 Block *BlockStorage::allocate() {
@@ -136,7 +131,6 @@ Block *BlockStorage::allocate() {
 	b->refCount = 1;
 	b->id = this->superblock->blocksCount;
 
-// 	fprintf(stderr, "alloc %u\n", b->id);
 	this->blocksCache.push_back(b);
 	this->blocksCacheMap[b->id] = --this->blocksCache.end();
 	this->blocksCacheCurrentSize++;
