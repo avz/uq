@@ -1,3 +1,5 @@
+. tests/func.inc.sh
+
 tmpStoragePath="$TMP_DIR"/test.storage.btree
 
 $CMD -t "$tmpStoragePath" < $TEST_ROOT/storage.data
