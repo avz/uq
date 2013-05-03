@@ -67,9 +67,9 @@ int main(int argc, char *argv[]) {
 
 	// fields control
 	OPTS.keyField   = 0;
-	OPTS.keyFieldSeparator      = ',';
+	OPTS.keyFieldSeparator = '\t';
 
-	while ((ch = getopt(argc, argv, "sicvub:t:S:f:d:m:p:")) != -1) {
+	while ((ch = getopt(argc, argv, "cvub:t:f:d:m:p:")) != -1) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
@@ -277,7 +277,7 @@ void usage() {
 	fputs("  -u: url mode\n", stderr);
 	fputs("  -v: verbose\n", stderr);
 	fputs("  -f <number>: select key field\n", stderr);
-	fputs("  -d <char>: use given delimiter instead of ','\n", stderr);
+	fputs("  -d <char>: use given delimiter instead of TAB for field delimiter\n", stderr);
 	fputs("  -b <number>: block size\n", stderr);
 	fputs("  -f <size>: cache size\n", stderr);
 	fputs("  -p <size>: buffer prefetch size\n", stderr);
