@@ -1,0 +1,15 @@
+language: cpp
+
+compiler:
+  - clang
+  - gcc
+
+notifications:
+  email: false
+
+before_script:
+  - "make"
+  - "sudo make install clean"
+
+script:
+  - "make test"
