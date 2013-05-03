@@ -1,20 +1,27 @@
 CC=g++
 LD=$(CC)
-CFLAGS= -c -O2 -Wall -I/usr/local/include -g
+CFLAGS?=-c -O2 -Wall -I/usr/local/include -g
+
 LDFLAGS= -L/usr/local/lib
+
 LIBS=-lssl -lcrypto
 
-PROJ=uniq
+PROJECT=uq
 
 OBJS=btree.o btree_node.o main.o misc.o storage.o
 
-build: $(PROJ)
+VPATH=src
 
-$(PROJ): $(OBJS)
-	$(LD) $(LDFLAGS) $(OBJS) $(LIBS) -o "$(PROJ)"
+build: $(PROJECT)
+
+$(PROJECT): $(OBJS)
+	$(LD) $(LDFLAGS) $(OBJS) $(LIBS) -o "$(PROJECT)"
 
 .cpp.o:
-	$(CC) $(CFLAGS) $*.cpp
+	$(CC) $(CFLAGS) src/$*.cpp
+
+install: build
+	install "$(PROJECT)" "$(PREFIX)/bin"
 
 clean:
-	rm -f *.o "$(PROJ)"
+	rm -f *.o "$(PROJECT)"
