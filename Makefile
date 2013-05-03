@@ -25,3 +25,6 @@ install: build
 
 clean:
 	rm -f *.o "$(PROJECT)"
+
+test: build
+	sh tests/run.sh
