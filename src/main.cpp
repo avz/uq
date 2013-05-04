@@ -308,8 +308,6 @@ void usage() {
 const unsigned char *getHash(const char *string, int stringLen) {
 	static unsigned char hashBuf[32];
 
-	string = string;
-
 	if(OPTS.urlMode) {
 		const char *host = getHost(string, stringLen);
 		MD5((const unsigned char *)host, strlen(host), hashBuf);
