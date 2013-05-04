@@ -27,6 +27,7 @@ struct options {
 	char verbose;
 	size_t cacheSize;
 	size_t prefetchSize;
+	unsigned char keySize;
 
 	// fields control
 	int keyField;
@@ -55,6 +56,7 @@ void mainLoop(UniqueBTree &tree);
 int main(int argc, char *argv[]) {
 	const char *filename = "";
 	unsigned long blockSize;
+	unsigned long keySize;
 	unsigned long keyField;
 	size_t cacheSize;
 	unsigned long prefetchSize;
@@ -67,13 +69,14 @@ int main(int argc, char *argv[]) {
 	OPTS.forceCreateNewDb = 0;
 	OPTS.verbose = 0;
 	OPTS.urlMode = 0;
+	OPTS.keySize = 8;
 	OPTS.cacheSize = SIZE_T_MAX;
 
 	// fields control
 	OPTS.keyField   = 0;
 	OPTS.keyFieldSeparator = '\t';
 
-	while ((ch = getopt(argc, argv, "cvub:t:f:d:m:p:")) != -1) {
+	while ((ch = getopt(argc, argv, "cvub:k:t:f:d:m:p:")) != -1) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
@@ -81,6 +84,13 @@ int main(int argc, char *argv[]) {
 					fatalInUserOptions("Block size must be >32\n");
 
 				OPTS.blockSize = blockSize;
+			break;
+			case 'k':
+				keySize = strtoul(optarg, NULL, 0);
+				if(keySize != 1 && keySize != 2 && keySize != 4 && keySize != 8 && keySize != 16)
+					fatalInUserOptions("Key size must be in (1, 2, 4, 8, 16)\n");
+
+				OPTS.keySize = keySize;
 			break;
 			case 't':
 				filename = optarg;
@@ -137,6 +147,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	UniqueBTree tree(filename);
+	tree.setKeySize(OPTS.keySize);
 	tree.storage.setPrefetchSize(OPTS.prefetchSize);
 
 	if(access(filename, R_OK | W_OK) == 0 && !OPTS.forceCreateNewDb) {
@@ -219,8 +230,6 @@ void mainLoop(UniqueBTree &tree) {
 				} else {
 					keyLen = keyEnd - keyPtr;
 				}
-
-				keyPtr[keyLen] = 0;
 			} else { // нужного филда нет в строке
 
 			}
@@ -293,17 +302,20 @@ void usage() {
 	fputs("  -b <number>: block size\n", stderr);
 	fputs("  -f <size>: cache size\n", stderr);
 	fputs("  -p <size>: buffer prefetch size\n", stderr);
+	fputs("  -k <1|2|4|8|16>: key hash size\n", stderr);
 }
 
-const unsigned char *getHash(const char *string, int string_len) {
+const unsigned char *getHash(const char *string, int stringLen) {
 	static unsigned char hashBuf[32];
 
+	string = string;
+
 	if(OPTS.urlMode) {
-		const char *host = getHost(string, string_len);
+		const char *host = getHost(string, stringLen);
 		MD5((const unsigned char *)host, strlen(host), hashBuf);
-		MD5((const unsigned char *)string, string_len, hashBuf + 3);
+		MD5((const unsigned char *)string, stringLen, hashBuf + 3);
 	} else {
-		MD5((const unsigned char *)string, string_len, hashBuf);
+		MD5((const unsigned char *)string, stringLen, hashBuf);
 	}
 
 	return hashBuf;

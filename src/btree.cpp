@@ -43,7 +43,7 @@ void UniqueBTree::create(size_t blockSize) {
 	this->storage.create(blockSize);
 
 	this->superblock = new UniqueBTreeSuperblock(this->storage.allocate());
-	this->keySize = this->superblock->keySize = 8;
+	this->superblock->keySize = this->keySize;
 
 	this->root = new UniqueBTreeNode(this, this->storage.allocate());
 	this->root->isLeaf = 1;
@@ -101,6 +101,10 @@ bool UniqueBTree::add(const void *key) {
 			this->superblock->update();
 		}
 	} while(true);
+}
+
+void UniqueBTree::setKeySize(unsigned char size) {
+	this->keySize = size;
 }
 
 UniqueBTreeNode *UniqueBTree::get(uint32_t id) {

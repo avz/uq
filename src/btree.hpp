@@ -37,6 +37,9 @@ public:
 	void load();
 	void reload();
 	bool add(const void *key);
+
+	void setKeySize(unsigned char size);
+
 	UniqueBTreeNode *get(uint32_t id);
 };
 
