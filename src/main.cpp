@@ -207,6 +207,8 @@ void mainLoop(UniqueBTree &tree) {
 					keyLen = 0;
 					break;
 				}
+
+				keyPtr++;
 			}
 
 			if(keyLen) {
@@ -217,6 +219,8 @@ void mainLoop(UniqueBTree &tree) {
 				} else {
 					keyLen = keyEnd - keyPtr;
 				}
+
+				keyPtr[keyLen] = 0;
 			} else { // нужного филда нет в строке
 
 			}
