@@ -22,9 +22,9 @@ void UniqueBTreeSuperblock::update() {
 }
 
 
-UniqueBTree::UniqueBTree(const char *filename):
+UniqueBTree::UniqueBTree(const char *filename, bool readOnlyMode):
 	root(NULL),
-	storage(filename),
+	storage(filename, readOnlyMode),
 	superblock(NULL),
 	keySize(8),
 	blockSize(4096*2)
@@ -101,6 +101,10 @@ bool UniqueBTree::add(const void *key) {
 			this->superblock->update();
 		}
 	} while(true);
+}
+
+bool UniqueBTree::check(const void *key) {
+	return this->root->isNotExists(key);
 }
 
 void UniqueBTree::setKeySize(unsigned char size) {

@@ -53,8 +53,9 @@ void BlockStorageSuperblock::update() {
 
 /* -- */
 
-BlockStorage::BlockStorage(const char *filename)
+BlockStorage::BlockStorage(const char *filename, bool readOnly)
 	:fd(-1),
+	readOnly(readOnly),
 	blocksCacheSize(SIZE_T_MAX),
 	superblock(NULL)
 {
@@ -78,6 +79,11 @@ BlockStorage::~BlockStorage() {
 }
 
 void BlockStorage::create(size_t blockSize) {
+	if(this->readOnly) {
+		errno = EINVAL;
+		fatal("Unable to create new db in read-only mode");
+	}
+
 	this->blockSize = blockSize;
 
 	this->fd = open(this->filename, O_RDWR | O_CREAT | O_TRUNC, 0640);
@@ -95,7 +101,7 @@ void BlockStorage::create(size_t blockSize) {
 }
 
 void BlockStorage::load() {
-	this->fd = open(this->filename, O_RDWR);
+	this->fd = open(this->filename, this->readOnly ? O_RDONLY : O_RDWR);
 	if(this->fd < 0) {
 		perror(this->filename);
 		exit(errno);

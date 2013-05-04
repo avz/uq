@@ -29,6 +29,8 @@ struct options {
 	size_t prefetchSize;
 	unsigned char keySize;
 
+	char checkMode;
+
 	// fields control
 	int keyField;
 	int keyFieldSeparator;
@@ -70,13 +72,14 @@ int main(int argc, char *argv[]) {
 	OPTS.verbose = 0;
 	OPTS.urlMode = 0;
 	OPTS.keySize = 8;
+	OPTS.checkMode = 0;
 	OPTS.cacheSize = SIZE_T_MAX;
 
 	// fields control
 	OPTS.keyField   = 0;
 	OPTS.keyFieldSeparator = '\t';
 
-	while ((ch = getopt(argc, argv, "cvub:k:t:f:d:m:p:")) != -1) {
+	while ((ch = getopt(argc, argv, "crvub:k:t:f:d:m:p:")) != -1) {
 		switch (ch) {
 			case 'b':
 				blockSize = strtoul(optarg, NULL, 0);
@@ -97,6 +100,9 @@ int main(int argc, char *argv[]) {
 			break;
 			case 'c':
 				OPTS.forceCreateNewDb = 1;
+			break;
+			case 'r':
+				OPTS.checkMode = 1;
 			break;
 			case 'u':
 				OPTS.urlMode = 1;
@@ -146,7 +152,7 @@ int main(int argc, char *argv[]) {
 		exit(255);
 	}
 
-	UniqueBTree tree(filename);
+	UniqueBTree tree(filename, (bool)OPTS.checkMode);
 	tree.setKeySize(OPTS.keySize);
 	tree.storage.setPrefetchSize(OPTS.prefetchSize);
 
@@ -194,6 +200,13 @@ void mainLoop(UniqueBTree &tree) {
 
 	signal(SIGALRM, onAlarm);
 
+	/* функция, через которую проверяется каждый ключ. Может быть add или check */
+	bool (UniqueBTree::*searchAction)(const void *);
+
+	if(OPTS.checkMode)
+		searchAction = &UniqueBTree::check;
+	else
+		searchAction = &UniqueBTree::add;
 
 	char *linePtr = NULL;
 	ssize_t lineLen;
@@ -235,7 +248,7 @@ void mainLoop(UniqueBTree &tree) {
 			}
 		}
 
-		if(tree.add(getHash(keyPtr, keyLen)))
+		if((tree.*searchAction)(getHash(keyPtr, keyLen)))
 			fwrite(linePtr, lineLen, 1, stdout);
 	}
 

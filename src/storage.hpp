@@ -40,6 +40,7 @@ protected:
 	int fd;
 	uint32_t blockSize;
 	const char *filename;
+	bool readOnly;
 
 	void _extendFile(off_t newSize);
 	off_t _fileSize();
@@ -56,7 +57,7 @@ protected:
 	size_t prefetchSize;
 public:
 	BlockStorageSuperblock *superblock;
-	BlockStorage(const char *filename);
+	BlockStorage(const char *filename, bool readOnly = false);
 	~BlockStorage();
 
 	void create(size_t blockSize);

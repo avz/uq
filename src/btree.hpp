@@ -30,13 +30,14 @@ public:
 	uint32_t keySize;
 	uint32_t blockSize;
 
-	UniqueBTree(const char *filename);
+	UniqueBTree(const char *filename, bool readOnlyMode = false);
 	~UniqueBTree();
 
 	void create(size_t blockSize);
 	void load();
 	void reload();
 	bool add(const void *key);
+	bool check(const void *key);
 
 	void setKeySize(unsigned char size);
 

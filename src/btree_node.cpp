@@ -98,6 +98,26 @@ bool UniqueBTreeNode::add(const void *key) {
 	return true;
 }
 
+bool UniqueBTreeNode::isNotExists(const void *key) {
+	off_t t;
+
+	if(this->isLeaf) {
+		if(this->numKeys && searchInterval(this->keys, this->tree->keySize, this->numKeys, key) == -1)
+			return false;
+
+	} else {
+		t = searchInterval(this->keys, this->tree->keySize, this->numKeys, key);
+		if(t == -1)
+			return false;
+
+		std::auto_ptr<UniqueBTreeNode> n(this->tree->get(this->childs[t]));
+
+		return n->isNotExists(key);
+	}
+
+	return true;
+}
+
 uint32_t UniqueBTreeNode::maxKeys() {
 	if(this->isLeaf)
 		return (this->tree->blockSize - sizeof(uint32_t) * 2) / this->tree->keySize;

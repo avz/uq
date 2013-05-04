@@ -25,6 +25,7 @@ public:
 
 	void split(UniqueBTreeNode *right, void *key);
 	bool add(const void *key);
+	bool isNotExists(const void *key);
 
 	void mlock();
 
