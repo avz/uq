@@ -58,8 +58,7 @@ BlockStorage::BlockStorage(const char *filename)
 	blocksCacheSize(SIZE_T_MAX),
 	superblock(NULL)
 {
-	this->filename = new char[strlen(filename)+1];
-	strcpy(this->filename, filename);
+	this->filename = filename;
 	blocksCacheCurrentSize = 0;
 	gcTimer = 1;
 	gcProbability = 2048;
@@ -69,12 +68,8 @@ BlockStorage::~BlockStorage() {
 	if(this->superblock)
 		delete superblock;
 
-	this->superblock = NULL;
-
 	this->setCacheSize(0);
 	this->_gc(true);
-
-	delete[] this->filename;
 
 	if(this->fd >= 0)
 		close(this->fd);
@@ -290,7 +285,22 @@ void BlockStorage::_gc(bool cleanAll) {
 
 		for(vi=flushBuffer.begin(); vi!=flushBuffer.end(); ++vi) {
 			Block *b = *vi;
-			pwrite(this->fd, b->ptr, this->blockSize, b->id * this->blockSize);
+			ssize_t written = 0;
+
+			while(written < this->blockSize) {
+				ssize_t w;
+
+				w = pwrite(this->fd, b->ptr + written, this->blockSize - written, b->id * this->blockSize + written);
+				if(w < 0) {
+					if(errno == EINTR)
+						continue;
+
+					fatal("Unable to flush block");
+				}
+
+				written += w;
+			}
+
 			delete b;
 		}
 // 		fprintf(stderr, "done\n");

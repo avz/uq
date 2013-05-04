@@ -82,7 +82,7 @@ bool UniqueBTreeNode::add(const void *key) {
 				if(this->numKeys >= this->maxKeys())
 					throw UniqueBTreeNode_NeedSplit();
 
-				UniqueBTreeNode right(this->tree, this->tree->allocate());
+				UniqueBTreeNode right(this->tree, this->tree->storage.allocate());
 				char newKey[this->tree->keySize];
 				n->split(&right, newKey);
 

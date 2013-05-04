@@ -18,7 +18,7 @@ for test in *.sh; do
 	echo -n " - $test ... "
 
 	cd "$rootDir"
-pwd
+
 	output=$(sh "$testDir/$test" 2>&1)
 	retCode=$?
 

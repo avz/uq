@@ -18,6 +18,7 @@
 #include "btree.hpp"
 #include "misc.hpp"
 #include "storage.hpp"
+#include "token_reader.hpp"
 
 struct options {
 	size_t blockSize;
@@ -30,6 +31,8 @@ struct options {
 	// fields control
 	int keyField;
 	int keyFieldSeparator;
+
+	TokenReader *reader;
 };
 
 struct statistic {
@@ -47,6 +50,7 @@ int getStdinLine(char *buf, int buf_size, char **line_start, int *line_len);
 void onSignal(int sig);
 void onAlarm(int sig);
 size_t parseSize(const char *str);
+void mainLoop(UniqueBTree &tree);
 
 int main(int argc, char *argv[]) {
 	const char *filename = "";
@@ -59,7 +63,7 @@ int main(int argc, char *argv[]) {
 
 	STAT.lineNumber = 0;
 
-	OPTS.blockSize = 4096*2;
+	OPTS.blockSize = 1024*8;
 	OPTS.forceCreateNewDb = 0;
 	OPTS.verbose = 0;
 	OPTS.urlMode = 0;
@@ -132,16 +136,8 @@ int main(int argc, char *argv[]) {
 		exit(255);
 	}
 
-	signal(SIGHUP, onSignal);
-	signal(SIGINT, onSignal);
-	signal(SIGKILL, onSignal);
-	signal(SIGPIPE, onSignal);
-	signal(SIGTERM, onSignal);
-
-	signal(SIGALRM, onAlarm);
-
 	UniqueBTree tree(filename);
-	tree.setPrefetchSize(OPTS.prefetchSize);
+	tree.storage.setPrefetchSize(OPTS.prefetchSize);
 
 	if(access(filename, R_OK | W_OK) == 0 && !OPTS.forceCreateNewDb) {
 		tree.load();
@@ -158,32 +154,84 @@ int main(int argc, char *argv[]) {
 	if(OPTS.verbose)
 		onAlarm(SIGALRM);
 
-	setlinebuf(stdin);
 	setlinebuf(stdout);
-
-	char line[1024];
-	char *linePtr;
-	int   lineLen;
 
 	if(OPTS.cacheSize < tree.blockSize) {
 		fprintf(stderr, "Cache size must be >=blockSize [%u]\n", (unsigned int)tree.blockSize);
 		exit(255);
 	}
 
-	tree.setCacheSize(OPTS.cacheSize / tree.blockSize);
+	tree.storage.setCacheSize(OPTS.cacheSize / tree.blockSize);
 
-	while(getStdinLine(line, sizeof(line), &linePtr, &lineLen)) {
-		STAT.lineNumber++;
-
-		if(tree.add(getHash(linePtr, lineLen)))
-			fputs(line, stdout);
-	}
+	mainLoop(tree);
 
 	return EXIT_SUCCESS;
 }
 
+void mainLoop(UniqueBTree &tree) {
+	char *keyPtr;
+	ssize_t keyLen;
+	TokenReader reader(STDIN_FILENO);
+
+	OPTS.reader = &reader;
+
+	signal(SIGHUP, onSignal);
+	signal(SIGINT, onSignal);
+	signal(SIGKILL, onSignal);
+	signal(SIGPIPE, onSignal);
+	signal(SIGTERM, onSignal);
+
+	signal(SIGALRM, onAlarm);
+
+
+	char *linePtr = NULL;
+	ssize_t lineLen;
+
+	while((lineLen = reader.readUpToDelimiter('\n', (void **)&linePtr))) {
+		if(lineLen < 0)
+			fatal("Unable to read line from stdin");
+
+		char *lineEnd = (linePtr + lineLen);
+
+		if(OPTS.keyField == -1) {
+			keyPtr = linePtr;
+			keyLen = lineLen;
+		} else { // need to cut key field
+			keyPtr = linePtr;
+			keyLen = -1;
+
+			for(int curField = 0; curField < OPTS.keyField - 1; curField++) {
+				keyPtr = (char *)memchr(keyPtr, OPTS.keyFieldSeparator, lineEnd - keyPtr);
+
+				if(!keyPtr) {
+					keyLen = 0;
+					break;
+				}
+			}
+
+			if(keyLen) {
+				char *keyEnd = (char *)memchr(keyPtr, OPTS.keyFieldSeparator, lineEnd - keyPtr);
+
+				if(!keyEnd) { // последний филд в строке
+					keyLen = lineEnd - keyPtr;
+				} else {
+					keyLen = keyEnd - keyPtr;
+				}
+			} else { // нужного филда нет в строке
+
+			}
+		}
+
+		if(tree.add(getHash(keyPtr, keyLen)))
+			fwrite(linePtr, lineLen, 1, stdout);
+	}
+
+	OPTS.reader = NULL;
+}
+
 void onSignal(int sig) {
-	fclose(stdin);
+	if(OPTS.reader)
+		OPTS.reader->setEof();
 }
 
 void onAlarm(int sig) {
@@ -204,46 +252,6 @@ void onAlarm(int sig) {
 	lastCallLineNumber = STAT.lineNumber;
 	lastCallTime = gettimed();
 	alarm(1);
-}
-
-// returns 0 on EOF, 1 on success
-int getStdinLine(char *buf, int bufSize, char **lineStart, int *lineLen){
-	int curField;
-	char *cur, *next;
-
-	do {
-		if(!fgets(buf, bufSize, stdin))
-			return 0;
-
-		if(OPTS.keyField == -1){
-			*lineStart = buf;
-			*lineLen = strlen(buf);
-			return 1;
-		}
-
-		cur = buf;
-		curField = 1;
-		do {
-			next = strchr(cur, OPTS.keyFieldSeparator);
-			if(!next){
-				if(curField == OPTS.keyField){
-					*lineStart = cur;
-					*lineLen = strlen(cur) - 1;
-					return 1;
-				}
-				break;
-			}
-
-			if(curField == OPTS.keyField){
-				*lineStart = cur;
-				*lineLen = next - cur;
-				return 1;
-			}
-
-			cur = next + 1; // skip field sep
-			curField++;
-		} while(cur);
-	} while(1);
 }
 
 const char *getHost(const char *url, size_t len) {

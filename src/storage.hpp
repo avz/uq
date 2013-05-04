@@ -39,7 +39,7 @@ class BlockStorage {
 protected:
 	int fd;
 	uint32_t blockSize;
-	char *filename;
+	const char *filename;
 
 	void _extendFile(off_t newSize);
 	off_t _fileSize();

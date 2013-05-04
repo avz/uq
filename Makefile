@@ -1,6 +1,6 @@
 CC=g++
 LD=$(CC)
-CFLAGS?=-c -O2 -Wall -I/usr/local/include -g
+CFLAGS?=-c -O2 -Wall -Werror -I/usr/local/include -g
 
 LDFLAGS= -L/usr/local/lib
 
@@ -8,7 +8,7 @@ LIBS=-lssl -lcrypto
 
 PROJECT=uq
 
-OBJS=btree.o btree_node.o main.o misc.o storage.o
+OBJS=btree.o btree_node.o main.o misc.o storage.o token_reader.o
 
 VPATH=src
 

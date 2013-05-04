@@ -20,10 +20,12 @@ public:
 	void update();
 };
 
-class UniqueBTree: public BlockStorage {
+class UniqueBTree {
 	UniqueBTreeNode *root;
 
 public:
+	BlockStorage storage;
+
 	UniqueBTreeSuperblock *superblock;
 	uint32_t keySize;
 	uint32_t blockSize;
