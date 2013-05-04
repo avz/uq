@@ -1,5 +1,5 @@
-CC=g++
-LD=$(CC)
+CXX?=g++
+LD=$(CXX)
 CFLAGS?=-c -O2 -Wall -Werror -I/usr/local/include -g
 
 LDFLAGS= -L/usr/local/lib
@@ -18,7 +18,7 @@ $(PROJECT): $(OBJS)
 	$(LD) $(LDFLAGS) $(OBJS) $(LIBS) -o "$(PROJECT)"
 
 .cpp.o:
-	$(CC) $(CFLAGS) src/$*.cpp
+	$(CXX) $(CFLAGS) src/$*.cpp
 
 install: build
 	install "$(PROJECT)" "$(PREFIX)/bin"
