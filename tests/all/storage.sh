@@ -2,7 +2,6 @@
 
 tmpStoragePath="$TMP_DIR"/test.storage.btree
 
-rm "$tmpStoragePath"
 $CMD -ct "$tmpStoragePath" < $TEST_ROOT/storage.data > /dev/null
 
 md5=$(MD5 "$tmpStoragePath")
