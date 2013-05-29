@@ -11,7 +11,9 @@ PROJECT=uq
 OBJS=src/main.o \
     src/external/murmurhash3/MurmurHash3.o \
     src/blockStorage/backend/File.o \
-    src/TokenReader.o
+    src/TokenReader.o \
+    src/BTreeNode.o \
+    src/BTree.o
 
 build: $(PROJECT)
 

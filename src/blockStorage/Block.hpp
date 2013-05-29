@@ -2,6 +2,7 @@
 #define	BLOCKSTORAGE_BLOCK_HPP
 
 #include <sys/types.h>
+#include <inttypes.h>
 
 namespace blockStorage {
 	class Block {
@@ -44,6 +45,10 @@ namespace blockStorage {
 		};
 
 		void flush() {
+
+		};
+
+		void allocate() {
 
 		};
 

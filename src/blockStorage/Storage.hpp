@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <map>
+#include <vector>
 #include <assert.h>
 #include <fcntl.h>
 
