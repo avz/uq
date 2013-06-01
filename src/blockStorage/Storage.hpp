@@ -120,9 +120,9 @@ BlockT *blockStorage::Storage<BackendT, BlockT, SuperblockT>::getFromCache(uint6
 
 template<typename BackendT, typename BlockT, typename SuperblockT>
 BlockT *blockStorage::Storage<BackendT, BlockT, SuperblockT>::get(uint64_t id) {
-	BlockT *b = this->getFromCache(id);
-
 	assert(id != 0);
+
+	BlockT *b = this->getFromCache(id);
 
 	if(!b) {
 		void *buf = this->backend.read((off_t)id, this->blockSize);

@@ -2,6 +2,7 @@
 #define	BTREENODE_HPP
 
 #include <stdlib.h>
+#include <set>
 #include "blockStorage/Block.hpp"
 #include "BTree.hpp"
 
@@ -48,6 +49,19 @@ class BTreeNode: public blockStorage::Block {
 	 */
 	uint64_t *childsSplitKeys;
 
+	/**
+	 * Сколько инсертов в ноду было сделано с момента выборки блока из хранилища
+	 * или с момента последнего флаша
+     */
+	uint32_t numInserts;
+
+	/**
+	 * Нода была сконвертирована в std::set для скорости
+	 */
+	bool convertedToSet;
+
+	std::set<uint64_t> set;
+
 public:
 	BTreeNode(uint64_t id, void *buf, ssize_t size);
 
@@ -76,6 +90,8 @@ public:
      */
 	uint64_t add(uint64_t key, BTree &tree, uint64_t *splitKey);
 
+	void dump();
+
 private:
 	/**
      * @param items
@@ -103,6 +119,9 @@ private:
      * @return NULL - если такой айтем уже есть
      */
 	static uint64_t *_find(uint64_t *items, uint32_t count, uint64_t newItem);
+
+	void _convertToSet();
+	void _flushSet();
 };
 
 #endif	/* BTREENODE_HPP */

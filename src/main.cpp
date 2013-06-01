@@ -26,22 +26,29 @@ int main(int argc, const char *argv[]) {
 
 		blockStorage::Storage<blockStorage::backend::File, BTreeNode, Superblock> storage(
 			backend,
-			1024*1024,
+			16 * 1024,
 			flags
 		);
 
 		Superblock *sb = storage.getSuperblock();
+		BTreeNode *root = storage.allocate();
+
 		if(!sb->getFirstBlockId()) {
-			sb->setFirstBlockId(storage.allocate()->id);
+			root->makeLeaf();
+
+			sb->setFirstBlockId(root->id);
 		}
 
 		BTree hash(storage);
 
 		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0100000000000001ull));
+//root->dump();
 		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0200000000000001ull));
+//root->dump();
 		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0200000000000001ull));
 		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0000000000010101ull));
-
+//root->dump();
+//return 0;
 		void *buf;
 		ssize_t bufLen;
 		TokenReader reader(STDIN_FILENO);

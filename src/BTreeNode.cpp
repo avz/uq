@@ -1,3 +1,5 @@
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 #include "BTreeNode.hpp"
 
 BTreeNode::BTreeNode(uint64_t id, void *buf, ssize_t size):
@@ -8,7 +10,9 @@ BTreeNode::BTreeNode(uint64_t id, void *buf, ssize_t size):
 	maxItemsCount(size / sizeof(uint64_t) - 1),
 	maxChildsCount(maxItemsCount - (maxItemsCount - 1) / 2),
 	childs(items),
-	childsSplitKeys(childs + maxChildsCount)
+	childsSplitKeys(childs + maxChildsCount),
+	numInserts(0),
+	convertedToSet(0)
 {
 }
 
@@ -34,14 +38,32 @@ void BTreeNode::makeNode() {
 }
 
 uint64_t BTreeNode::add(uint64_t key, BTree &tree, uint64_t *splitKey) {
+//	fprintf(stderr, "add(): %lu\n", this->id);
+
 	if(this->flags & BTreeNode::NODE_ISLEAF) {
+		if(this->convertedToSet) {
+			if(this->set.insert(key).second) {
+				if(this->set.size() + 2 > this->maxItemsCount)
+					this->_flushSet();
+
+				return 1;
+			} else {
+				return 0;
+			}
+		}
+
 		if(BTreeNode::_insert(this->items, this->itemsCount, key)) {
 			// айтем добавлен, проверяем нужно ли сделать сплит
 			this->itemsCount++;
+			this->numInserts++;
+
+			if(this->numInserts > 5)
+				this->_convertToSet();
 
 			if(this->itemsCount + 1 >= this->maxItemsCount) {
 				// нужен сплит, запрашиваем новую ноду и заполняем её
-
+//fprintf(stderr, "split: %lu\n", this->id);
+//this->dump();
 				BTreeNode *node = tree.allocate();
 				node->makeLeaf();
 				uint32_t splitIndex = this->itemsCount / 2;
@@ -52,7 +74,8 @@ uint64_t BTreeNode::add(uint64_t key, BTree &tree, uint64_t *splitKey) {
 
 				node->itemsCount = this->itemsCount - splitIndex;
 				this->itemsCount = splitIndex;
-
+//this->dump();
+//node->dump();
 				return node->id;
 			}
 
@@ -69,6 +92,8 @@ uint64_t BTreeNode::add(uint64_t key, BTree &tree, uint64_t *splitKey) {
 		}
 
 		uint32_t childOffset = position - this->childsSplitKeys;
+//		if(!this->childs[childOffset])
+//			this->dump();
 
 		BTreeNode *child = tree.get(this->childs[childOffset]);
 
@@ -195,7 +220,7 @@ uint64_t *BTreeNode::_insert(uint64_t *items, uint32_t count, uint64_t newItem) 
  * @return NULL - если такой айтем уже есть
  */
 void BTreeNode::_insertInto(uint64_t *items, uint32_t count, uint64_t newItem, uint64_t *position) {
-	if(count && position == items + count)
+	if(count && position != items + count)
 		memmove(position + 1, position, (items + count - position) * sizeof(*items));
 
 	*position = newItem;
@@ -247,4 +272,90 @@ uint64_t *BTreeNode::_find(uint64_t *items, uint32_t count, uint64_t newItem) {
 	return items + right;
 }
 
+void BTreeNode::dump() {
+//	/**
+//	 * Для листовых нод: кол-во хешей в листе
+//	 * Для узловых: кол-во дочерних нод
+//	 */
+//	uint32_t &itemsCount;
+//
+//	/**
+//	 * Только для листовых нод
+//	 * Указатель на начало блока хешей
+//	 */
+//	uint64_t *items;
+//
+//	/**
+//	 * Для листовых нод: максимальное кол-во хешей в ноде
+//	 * Для узловых: максимальное суммарное кол-во идентификаторов дочерних нод и граничных ключей
+//	 */
+//	uint32_t maxItemsCount;
+//
+//	/**
+//	 * Только для узловых нод.
+//	 * Максимальное кол-во дочерних нод
+//	 */
+//	uint32_t maxChildsCount;
+//
+//	/**
+//	 * Только для узловых нод.
+//	 * Указатель на начало блока адресов чайлдов
+//	 */
+//	uint64_t *childs;
+//
+//	/**
+//	 * Только для узловых нод.
+//	 * Указатель на начало блока граничных ключей
+//	 */
+//	uint64_t *childsSplitKeys;
+	fprintf(stderr, "%s node #%" PRIu64 ":\n", (this->flags & BTreeNode::NODE_ISLEAF ? "Leaf" : "Index"), this->id);
+	fprintf(stderr, "\tmaxItemsCount: %" PRIu32, this->maxItemsCount);
+	fprintf(stderr, "\titemsCount: %" PRIu32, this->itemsCount);
+	if(this->flags & BTreeNode::NODE_ISLEAF) {
+		fprintf(stderr, "\titems: ");
+		for(uint32_t i = 0; i < this->itemsCount; i++) {
+			fprintf(stderr, "#%" PRIu64 " ", this->items[i]);
+		}
+
+		fprintf(stderr, "\n");
+	} else {
+		fprintf(stderr, "\titems: ");
+
+		for(uint32_t i = 0; i < this->itemsCount - 1; i++) {
+			fprintf(stderr, "#%" PRIu64 " ", this->childs[i]);
+			fprintf(stderr, "<%" PRIu64 "> ", this->childsSplitKeys[i]);
+		}
+
+		fprintf(stderr, "#%" PRIu64 " ", this->childs[this->itemsCount - 1]);
+		fprintf(stderr, "\n");
+	}
+}
+
+
+void BTreeNode::_convertToSet() {
+//	fprintf(stderr, "Convert to set #%" PRIu64 "\n", this->id);
+	this->convertedToSet = true;
+
+	for(uint32_t i = 0; i < this->itemsCount; i++) {
+		this->set.insert(this->items[i]);
+	}
+}
+
+void BTreeNode::_flushSet() {
+//	fprintf(stderr, "Flush set #%" PRIu64 "\n", this->id);
+	this->convertedToSet = false;
+	this->numInserts = 0;
+
+	std::set<uint64_t>::iterator i;
+	uint32_t n = 0;
+
+	for(i = this->set.begin(); i != this->set.end(); ++i) {
+		this->childs[n] = *i;
+		n++;
+	}
+
+	this->set.clear();
+
+	this->itemsCount = n;
+}
 //-
