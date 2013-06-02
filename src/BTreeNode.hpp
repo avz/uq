@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <set>
+#include <unordered_set>
 #include "blockStorage/Block.hpp"
 #include "BTree.hpp"
 
@@ -60,15 +61,7 @@ class BTreeNode: public blockStorage::Block {
 	 */
 	bool convertedToSet;
 
-	/**
-	 * Нода была сконвертирована в hash для скорости
-	 */
-	bool convertedToHash;
-
-	std::set<uint64_t> set;
-
-	void *hash;
-
+	std::unordered_set<uint64_t> set;
 public:
 	BTreeNode(uint64_t id, void *buf, ssize_t size);
 

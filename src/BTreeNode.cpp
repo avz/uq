@@ -1,5 +1,6 @@
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
+#include <algorithm>
 #include "BTreeNode.hpp"
 
 BTreeNode::BTreeNode(uint64_t id, void *buf, ssize_t size):
@@ -59,8 +60,8 @@ uint64_t BTreeNode::add(uint64_t key, BTree &tree, uint64_t *splitKey) {
 			this->numInserts++;
 			this->markAsDirty();
 
-//			if(this->numInserts > 5)
-//				this->_convertToSet();
+			if(this->numInserts > 5)
+				this->_convertToSet();
 
 			if(this->itemsCount + 1 >= this->maxItemsCount) {
 				// нужен сплит, запрашиваем новую ноду и заполняем её
@@ -156,56 +157,6 @@ uint64_t BTreeNode::add(uint64_t key, BTree &tree, uint64_t *splitKey) {
  * @param newItem
  * @return NULL - если такой айтем уже есть
  */
-//	static uint64_t *_insertOpt(uint64_t *items, uint32_t count, uint64_t newItem) {
-//		uint64_t left = 0;
-//		uint64_t right = count - 1;
-//
-//		if(!count) {
-//			items[0] = newItem;
-//			return items;
-//		}
-//
-//		if(newItem >= items[right]) {
-//			if(newItem == items[right])
-//				return NULL;
-//
-//			items[right + 1] = newItem;
-//
-//			return items + right + 1;
-//		}
-//
-//		if(newItem <= items[left]) {
-//			if(newItem == items[left])
-//				return NULL;
-//
-//			memmove(items + 1, items, count * sizeof(*items));
-//
-//			items[0] = newItem;
-//
-//			return items;
-//		}
-//
-//		while(right - left > 1) {
-//			uint32_t cindex = left + (right - left) / 2;
-//			uint64_t ci = items[cindex];
-//
-//			if(newItem > ci) {
-//				left = cindex;
-//			} else if(newItem < ci) {
-//				right = cindex;
-//			} else { // ci == newItem
-//				return NULL;
-//			}
-//		}
-//
-//		// вставляем между left и right
-//		memmove(items + right + 1, items + right, (count - right) * sizeof(*items));
-//
-//		items[right] = newItem;
-//
-//		return items + right;
-//	}
-
 uint64_t *BTreeNode::_insert(uint64_t *items, uint32_t count, uint64_t newItem) {
 	uint64_t *position = BTreeNode::_find(items, count, newItem);
 
@@ -337,9 +288,16 @@ void BTreeNode::dump() {
 	}
 }
 
+void BTreeNode::flush() {
+	if(this->convertedToSet)
+		this->_flushSet();
+}
+
 void BTreeNode::_convertToSet() {
 //	fprintf(stderr, "Convert to set #%" PRIu64 "\n", this->id);
 	this->convertedToSet = true;
+
+	this->set.reserve(this->maxItemsCount);
 
 	for(uint32_t i = 0; i < this->itemsCount; i++) {
 		this->set.insert(this->items[i]);
@@ -351,10 +309,17 @@ void BTreeNode::_flushSet() {
 	this->convertedToSet = false;
 	this->numInserts = 0;
 
-	std::set<uint64_t>::iterator i;
+	std::vector<uint64_t> order;
+
+	order.resize(this->set.size());
+
+	std::copy(this->set.begin(), this->set.end(), order.begin());
+	std::sort(order.begin(), order.end());
+	
+	std::vector<uint64_t>::iterator i;
 	uint32_t n = 0;
 
-	for(i = this->set.begin(); i != this->set.end(); ++i) {
+	for(i = order.begin(); i != order.end(); ++i) {
 		this->childs[n] = *i;
 		n++;
 	}

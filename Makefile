@@ -1,6 +1,6 @@
 CXX?=g++
 LD=$(CXX)
-CFLAGS?=-c -O2 -Wall -Werror -I/usr/local/include -g
+CFLAGS?=-c -O2 -Wall -Werror -I/usr/local/include -g -std=c++11
 
 LDFLAGS= -L/usr/local/lib
 
