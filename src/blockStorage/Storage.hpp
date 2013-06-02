@@ -2,6 +2,7 @@
 #define	BLOCKSTORAGE_STORAGE_HPP
 #include <sys/types.h>
 #include <stdint.h>
+#include <unordered_map>
 #include <map>
 #include <vector>
 #include <assert.h>
@@ -9,10 +10,17 @@
 
 #include "Block.hpp"
 
+class _BlockIdToHash {
+public:
+    std::size_t operator()(uint64_t k) const {
+        return (std::size_t)k;
+    }
+};
+
 namespace blockStorage {
-	template<typename BackendT, typename BlockT, typename SuperblockT>
+	template <typename BackendT, typename BlockT, typename SuperblockT>
 	class Storage {
-		std::map<uint64_t, BlockT *> cache;
+		std::unordered_map<uint64_t, BlockT *, _BlockIdToHash> cache;
 
 		BackendT &backend;
 		ssize_t blockSize;
@@ -108,7 +116,7 @@ void blockStorage::Storage<BackendT, BlockT, SuperblockT>::addToCache(BlockT *bl
 
 template<typename BackendT, typename BlockT, typename SuperblockT>
 BlockT *blockStorage::Storage<BackendT, BlockT, SuperblockT>::getFromCache(uint64_t id) {
-	typename std::map<uint64_t, BlockT *>::iterator i;
+	typename std::unordered_map<uint64_t, BlockT *, _BlockIdToHash>::iterator i;
 
 	i = this->cache.find(id);
 
@@ -146,7 +154,7 @@ BlockT *blockStorage::Storage<BackendT, BlockT, SuperblockT>::allocate() {
 
 template<typename BackendT, typename BlockT, typename SuperblockT>
 void blockStorage::Storage<BackendT, BlockT, SuperblockT>::flush() {
-	typename std::map<uint64_t, BlockT *>::iterator i;
+	typename std::unordered_map<uint64_t, BlockT *, _BlockIdToHash>::iterator i;
 
 	for(i = this->cache.begin(); i != this->cache.end(); ++i) {
 		BlockT *b = i->second;
@@ -174,7 +182,7 @@ void blockStorage::Storage<BackendT, BlockT, SuperblockT>::flushBlock(BlockT *bl
 
 template<typename BackendT, typename BlockT, typename SuperblockT>
 void blockStorage::Storage<BackendT, BlockT, SuperblockT>::clearCache() {
-	typename std::map<uint64_t, BlockT *>::iterator i;
+	typename std::unordered_map<uint64_t, BlockT *, _BlockIdToHash>::iterator i;
 
 	for(i = this->cache.begin(); i != this->cache.end(); ++i) {
 		this->backend.free(i->second->buf);

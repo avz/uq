@@ -60,8 +60,8 @@ uint64_t BTreeNode::add(uint64_t key, BTree &tree, uint64_t *splitKey) {
 			this->numInserts++;
 			this->markAsDirty();
 
-			if(this->numInserts > 5)
-				this->_convertToSet();
+//			if(this->numInserts > 5)
+//				this->_convertToSet();
 
 			if(this->itemsCount + 1 >= this->maxItemsCount) {
 				// нужен сплит, запрашиваем новую ноду и заполняем её
@@ -157,7 +157,7 @@ uint64_t BTreeNode::add(uint64_t key, BTree &tree, uint64_t *splitKey) {
  * @param newItem
  * @return NULL - если такой айтем уже есть
  */
-uint64_t *BTreeNode::_insert(uint64_t *items, uint32_t count, uint64_t newItem) {
+inline uint64_t *BTreeNode::_insert(uint64_t *items, uint32_t count, uint64_t newItem) {
 	uint64_t *position = BTreeNode::_find(items, count, newItem);
 
 	if(!position)
@@ -174,7 +174,7 @@ uint64_t *BTreeNode::_insert(uint64_t *items, uint32_t count, uint64_t newItem) 
  * @param newItem
  * @return NULL - если такой айтем уже есть
  */
-void BTreeNode::_insertInto(uint64_t *items, uint32_t count, uint64_t newItem, uint64_t *position) {
+inline void BTreeNode::_insertInto(uint64_t *items, uint32_t count, uint64_t newItem, uint64_t *position) {
 	if(count && position != items + count)
 		memmove(position + 1, position, (items + count - position) * sizeof(*items));
 
@@ -190,9 +190,9 @@ void BTreeNode::_insertInto(uint64_t *items, uint32_t count, uint64_t newItem, u
  * @param newItem
  * @return NULL - если такой айтем уже есть
  */
-uint64_t *BTreeNode::_find(uint64_t *items, uint32_t count, uint64_t newItem) {
-	uint64_t left = 0;
-	uint64_t right = count - 1;
+inline uint64_t *BTreeNode::_find(uint64_t *items, uint32_t count, uint64_t newItem) {
+	uint32_t left = 0;
+	uint32_t right = count - 1;
 
 	if(!count)
 		return items;
@@ -315,7 +315,7 @@ void BTreeNode::_flushSet() {
 
 	std::copy(this->set.begin(), this->set.end(), order.begin());
 	std::sort(order.begin(), order.end());
-	
+
 	std::vector<uint64_t>::iterator i;
 	uint32_t n = 0;
 

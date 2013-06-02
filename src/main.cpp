@@ -20,13 +20,18 @@ uq -ct /tmp/test.old > /dev/null  189,19s user 1,46s system 100% cpu 3:10,44 tot
  */
 
 int main(int argc, const char *argv[]) {
+	if(argc != 2) {
+		fprintf(stderr, "Usage: %s </path/to/storage.bin>\n", argv[0]);
+		exit(255);
+	}
+
 	try {
 		int flags = O_RDWR | O_CREAT;
-		blockStorage::backend::File backend("/tmp/test", flags);
+		blockStorage::backend::File backend(argv[1], flags);
 
 		blockStorage::Storage<blockStorage::backend::File, BTreeNode, Superblock> storage(
 			backend,
-			16*1024*1024,
+			4*1024,
 			flags
 		);
 
@@ -71,3 +76,5 @@ int main(int argc, const char *argv[]) {
 
 	return EXIT_SUCCESS;
 }
+
+//	5.2 Mln / ~20.7 Mln [======------------ 25% ------------------] 64.4 Kln/s  (eta 05m 05s)
