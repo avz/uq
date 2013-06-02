@@ -21,33 +21,33 @@ uq -ct /tmp/test.old > /dev/null  189,19s user 1,46s system 100% cpu 3:10,44 tot
 
 int main(int argc, const char *argv[]) {
 	try {
-		int flags = O_RDWR | O_CREAT | O_TRUNC;
+		int flags = O_RDWR | O_CREAT;
 		blockStorage::backend::File backend("/tmp/test", flags);
 
 		blockStorage::Storage<blockStorage::backend::File, BTreeNode, Superblock> storage(
 			backend,
-			16 * 1024,
+			16*1024*1024,
 			flags
 		);
 
 		Superblock *sb = storage.getSuperblock();
-		BTreeNode *root = storage.allocate();
+		BTreeNode *root;
 
 		if(!sb->getFirstBlockId()) {
+			root = storage.allocate();
 			root->makeLeaf();
 
 			sb->setFirstBlockId(root->id);
+		} else {
+			root = storage.get(sb->getFirstBlockId());
 		}
 
 		BTree hash(storage);
 
-		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0100000000000001ull));
-//root->dump();
-		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0200000000000001ull));
-//root->dump();
-		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0200000000000001ull));
-		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0000000000010101ull));
-//root->dump();
+//		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0100000000000001ull));
+//		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0200000000000001ull));
+//		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0200000000000001ull));
+//		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0000000000010101ull));
 //return 0;
 		void *buf;
 		ssize_t bufLen;

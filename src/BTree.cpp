@@ -37,7 +37,13 @@ bool BTree::add(void *buf, ssize_t size) {
 
 	MurmurHash3_x64_128(buf, size, 0, &b);
 
-	return this->addKey(b[0] ^ b[1]);
+	b[0] ^= b[1];
+
+	/* гарантируем, что не будет хеша 0, херово для коллизий, но никуда не деться */
+	if(b[0] == 0)
+		b[0] = 1;
+
+	return this->addKey(b[0]);
 }
 
 /**
@@ -47,7 +53,10 @@ bool BTree::add(void *buf, ssize_t size) {
  * @return
  */
 BTreeNode *BTree::allocate() {
-	return this->storage.allocate();
+	BTreeNode *n = this->storage.allocate();
+	n->markAsDirty();
+
+	return n;
 }
 
 BTreeNode *BTree::get(uint64_t id) {

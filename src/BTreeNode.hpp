@@ -60,7 +60,14 @@ class BTreeNode: public blockStorage::Block {
 	 */
 	bool convertedToSet;
 
+	/**
+	 * Нода была сконвертирована в hash для скорости
+	 */
+	bool convertedToHash;
+
 	std::set<uint64_t> set;
+
+	void *hash;
 
 public:
 	BTreeNode(uint64_t id, void *buf, ssize_t size);
@@ -91,6 +98,7 @@ public:
 	uint64_t add(uint64_t key, BTree &tree, uint64_t *splitKey);
 
 	void dump();
+	void flush();
 
 private:
 	/**
