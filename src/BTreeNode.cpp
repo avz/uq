@@ -3,6 +3,11 @@
 #include <algorithm>
 #include "BTreeNode.hpp"
 
+//class _BTreeNodeHashAllocator {
+//public:
+
+//};
+
 BTreeNode::BTreeNode(uint64_t id, void *buf, ssize_t size):
 	blockStorage::Block(id, buf, size),
 	flags(*(uint32_t *)buf),
@@ -18,7 +23,7 @@ BTreeNode::BTreeNode(uint64_t id, void *buf, ssize_t size):
 }
 
 void BTreeNode::makeLeaf() {
-	this->flags = BTreeNode::NODE_ISLEAF;
+	this->flags = 0;
 	this->itemsCount = 0;
 }
 
@@ -42,7 +47,7 @@ uint64_t BTreeNode::add(uint64_t key, BTree &tree, uint64_t *splitKey) {
 //	fprintf(stderr, "add(): %lu\n", this->id);
 //	this->dump();
 
-	if(this->flags & BTreeNode::NODE_ISLEAF) {
+	if(!this->level) { // is leaf
 		if(this->convertedToSet) {
 			if(this->set.insert(key).second) {
 				if(this->set.size() + 2 > this->maxItemsCount)
@@ -67,8 +72,7 @@ uint64_t BTreeNode::add(uint64_t key, BTree &tree, uint64_t *splitKey) {
 				// нужен сплит, запрашиваем новую ноду и заполняем её
 //fprintf(stderr, "split: %lu\n", this->id);
 //this->dump();
-				BTreeNode *node = tree.allocate();
-				node->makeLeaf();
+				BTreeNode *node = tree.allocateLeaf(this->level);
 				uint32_t splitIndex = this->itemsCount / 2;
 				*splitKey = this->items[splitIndex];
 
@@ -98,7 +102,12 @@ uint64_t BTreeNode::add(uint64_t key, BTree &tree, uint64_t *splitKey) {
 //		if(!this->childs[childOffset])
 //			this->dump();
 
-		BTreeNode *child = tree.get(this->childs[childOffset]);
+		BTreeNode *child;
+
+		if(this->level > 1)
+			child = tree.getNode(this->childs[childOffset], this->level - 1);
+		else
+			child = tree.getLeaf(this->childs[childOffset], this->level - 1);
 
 		uint64_t inserted = child->add(key, tree, splitKey);
 		if(!inserted) // ключ уже есть
@@ -121,8 +130,7 @@ uint64_t BTreeNode::add(uint64_t key, BTree &tree, uint64_t *splitKey) {
 
 		if(this->itemsCount + 1 >= this->maxChildsCount) {
 			// ноду пора сплитить
-			BTreeNode *node = tree.allocate();
-			node->makeNode();
+			BTreeNode *node = tree.allocateNode(this->level);
 
 			uint32_t splitIndex = (this->itemsCount - 1) / 2;
 			*splitKey = this->childsSplitKeys[splitIndex];
@@ -263,10 +271,10 @@ void BTreeNode::dump() {
 //	 * Указатель на начало блока граничных ключей
 //	 */
 //	uint64_t *childsSplitKeys;
-	fprintf(stderr, "%s node #%" PRIu64 ":\n", (this->flags & BTreeNode::NODE_ISLEAF ? "Leaf" : "Index"), this->id);
+	fprintf(stderr, "%s node #%" PRIu64 ":\n", (!this->level ? "Leaf" : "Index"), this->id);
 	fprintf(stderr, "\tmaxItemsCount: %" PRIu32, this->maxItemsCount);
 	fprintf(stderr, "\titemsCount: %" PRIu32, this->itemsCount);
-	if(this->flags & BTreeNode::NODE_ISLEAF) {
+	if(!this->level) {
 		fprintf(stderr, "\titems: ");
 		for(uint32_t i = 0; i < this->itemsCount; i++) {
 			fprintf(stderr, "#%" PRIu64 " ", this->items[i]);

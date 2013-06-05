@@ -25,29 +25,20 @@ int main(int argc, const char *argv[]) {
 		exit(255);
 	}
 
+	ssize_t superblockSize = 4*1024;
+
 	try {
 		int flags = O_RDWR | O_CREAT;
 		blockStorage::backend::File backend(argv[1], flags);
 
 		blockStorage::Storage<blockStorage::backend::File, BTreeNode, Superblock> storage(
 			backend,
-			4*1024,
+			superblockSize,
 			flags
 		);
 
-		Superblock *sb = storage.getSuperblock();
-		BTreeNode *root;
-
-		if(!sb->getFirstBlockId()) {
-			root = storage.allocate();
-			root->makeLeaf();
-
-			sb->setFirstBlockId(root->id);
-		} else {
-			root = storage.get(sb->getFirstBlockId());
-		}
-
 		BTree hash(storage);
+		hash.init();
 
 //		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0100000000000001ull));
 //		fprintf(stderr, "RES %d\n", (int)hash.addKey(0x0200000000000001ull));

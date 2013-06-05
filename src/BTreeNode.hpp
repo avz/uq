@@ -9,9 +9,14 @@
 
 class BTree;
 
-class BTreeNode: public blockStorage::Block {
-	static const uint32_t NODE_ISLEAF = 1;
+class _HashHasher {
+public:
+	size_t operator() (const uint64_t hash) const {
+		return (size_t)hash;
+	}
+};
 
+class BTreeNode: public blockStorage::Block {
 	uint32_t &flags;
 
 	/**
@@ -61,8 +66,10 @@ class BTreeNode: public blockStorage::Block {
 	 */
 	bool convertedToSet;
 
-	std::unordered_set<uint64_t> set;
+	std::unordered_set<uint64_t, _HashHasher> set;
 public:
+	uint32_t level;
+
 	BTreeNode(uint64_t id, void *buf, ssize_t size);
 
 	void makeLeaf();

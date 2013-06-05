@@ -1,4 +1,4 @@
-CXX?=g++
+CXX?=clang++
 LD=$(CXX)
 CFLAGS?=-c -O3 -Wall -Werror -I/usr/local/include -g -std=c++11
 

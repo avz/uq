@@ -23,7 +23,7 @@ namespace blockStorage {
 		std::unordered_map<uint64_t, BlockT *, _BlockIdToHash> cache;
 
 		BackendT &backend;
-		ssize_t blockSize;
+		ssize_t superblockSize;
 		int flags;
 
 		BlockT *create(uint64_t id, void *buf, ssize_t size);
@@ -35,12 +35,12 @@ namespace blockStorage {
 		SuperblockT *superblock;
 
 	public:
-		Storage(BackendT &backend, ssize_t blockSize, int flags);
+		Storage(BackendT &backend, ssize_t superblockSize, int flags);
 		~Storage();
 
-		BlockT *get(uint64_t id);
+		BlockT *get(uint64_t id, ssize_t size);
 		SuperblockT *getSuperblock();
-		BlockT *allocate();
+		BlockT *allocate(ssize_t size);
 
 		void flushBlock(BlockT *block);
 		void flush();
@@ -50,9 +50,9 @@ namespace blockStorage {
 
 /* template implementation */
 template<typename BackendT, typename BlockT, typename SuperblockT>
-blockStorage::Storage<BackendT, BlockT, SuperblockT>::Storage(BackendT& backend, ssize_t blockSize, int flags):
+blockStorage::Storage<BackendT, BlockT, SuperblockT>::Storage(BackendT& backend, ssize_t superblockSize, int flags):
 	backend(backend),
-	blockSize(blockSize),
+	superblockSize(superblockSize),
 	flags(flags),
 	superblock(NULL)
 {
@@ -73,12 +73,12 @@ template<typename BackendT, typename BlockT, typename SuperblockT>
 void blockStorage::Storage<BackendT, BlockT, SuperblockT>::create() {
 	backend.clear();
 
-	off_t off = this->backend.allocate(this->blockSize);
+	off_t off = this->backend.allocate(this->superblockSize);
 	assert(off == 0);
 
 	this->superblock = new SuperblockT(
-		this->backend.read(0, this->blockSize),
-		this->blockSize
+		this->backend.read(0, this->superblockSize),
+		this->superblockSize
 	);
 
 	this->superblock->create();
@@ -88,8 +88,8 @@ template<typename BackendT, typename BlockT, typename SuperblockT>
 SuperblockT *blockStorage::Storage<BackendT, BlockT, SuperblockT>::getSuperblock() {
 	if(!this->superblock) {
 		this->superblock = new SuperblockT(
-			this->backend.read(0, this->blockSize),
-			this->blockSize
+			this->backend.read(0, this->superblockSize),
+			this->superblockSize
 		);
 
 		this->superblock->read();
@@ -127,28 +127,28 @@ BlockT *blockStorage::Storage<BackendT, BlockT, SuperblockT>::getFromCache(uint6
 }
 
 template<typename BackendT, typename BlockT, typename SuperblockT>
-BlockT *blockStorage::Storage<BackendT, BlockT, SuperblockT>::get(uint64_t id) {
+BlockT *blockStorage::Storage<BackendT, BlockT, SuperblockT>::get(uint64_t id, ssize_t size) {
 	assert(id != 0);
 
 	BlockT *b = this->getFromCache(id);
 
 	if(!b) {
-		void *buf = this->backend.read((off_t)id, this->blockSize);
+		void *buf = this->backend.read((off_t)id, size);
 
-		b = this->create(id, buf, this->blockSize);
+		b = this->create(id, buf, size);
 	}
 
 	return b;
 }
 
 template<typename BackendT, typename BlockT, typename SuperblockT>
-BlockT *blockStorage::Storage<BackendT, BlockT, SuperblockT>::allocate() {
-	off_t off = this->backend.allocate(this->blockSize);
+BlockT *blockStorage::Storage<BackendT, BlockT, SuperblockT>::allocate(ssize_t size) {
+	off_t off = this->backend.allocate(size);
 
 	return this->create(
 		(uint64_t)off,
-		this->backend.read(off, this->blockSize),
-		this->blockSize
+		this->backend.read(off, size),
+		size
 	);
 }
 
@@ -175,7 +175,7 @@ template<typename BackendT, typename BlockT, typename SuperblockT>
 void blockStorage::Storage<BackendT, BlockT, SuperblockT>::flushBlock(BlockT *block) {
 	block->flush();
 
-	this->backend.write(block->buf, (off_t)block->id, this->blockSize);
+	this->backend.write(block->buf, (off_t)block->id, block->size);
 
 	block->markAsClean();
 }
