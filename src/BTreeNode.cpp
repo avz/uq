@@ -189,6 +189,49 @@ inline void BTreeNode::_insertInto(uint64_t *items, uint32_t count, uint64_t new
 	*position = newItem;
 }
 
+inline static uint64_t *_findApprox(uint64_t *items, uint32_t count, uint64_t newItem) {
+	if(!count || newItem < items[0]) {
+		return items;
+	} else if(count == 1) {
+		if(newItem > items[0])
+			return items + 1;
+		else if(newItem < items[0])
+			return items;
+		else
+			return NULL;
+	}
+
+	uint32_t approxOffset = (newItem - items[0]) / ((items[count - 1] - items[0]) / count);
+	uint64_t approxItem = items[approxOffset];
+
+	if(newItem == approxItem)
+		return NULL;
+
+	if(newItem > approxItem) {
+		// идём вниз
+		for(uint32_t i = approxOffset + 1; i < count; i++) {
+			if(newItem == items[i])
+				return NULL;
+
+			if(newItem < items[i])
+				return items + i;
+		}
+
+		return items + count;
+	} else {
+		// идём вверх
+		for(uint32_t i = approxOffset - 1; i >= 0; i--) {
+			if(newItem == items[i])
+				return NULL;
+
+			if(newItem > items[i])
+				return items + i + 1;
+		}
+
+		return items;
+	}
+}
+
 /**
  * Ищет место для вставки нового элемента, и возвращает указатель
  * на элемент, на место которого надо вставить новый элемент. Или
@@ -199,11 +242,11 @@ inline void BTreeNode::_insertInto(uint64_t *items, uint32_t count, uint64_t new
  * @return NULL - если такой айтем уже есть
  */
 inline uint64_t *BTreeNode::_find(uint64_t *items, uint32_t count, uint64_t newItem) {
+	if(count < 2048)
+		return _findApprox(items, count, newItem);
+
 	uint32_t left = 0;
 	uint32_t right = count - 1;
-
-	if(!count)
-		return items;
 
 	if(newItem >= items[right]) {
 		if(newItem == items[right])
@@ -219,7 +262,7 @@ inline uint64_t *BTreeNode::_find(uint64_t *items, uint32_t count, uint64_t newI
 		return items;
 	}
 
-	while(right - left > 1) {
+	while(right - left > 2048) {
 		uint32_t cindex = left + (right - left) / 2;
 		uint64_t ci = items[cindex];
 
@@ -232,7 +275,7 @@ inline uint64_t *BTreeNode::_find(uint64_t *items, uint32_t count, uint64_t newI
 		}
 	}
 
-	return items + right;
+	return _findApprox(items + left, right - left, newItem);
 }
 
 void BTreeNode::dump() {

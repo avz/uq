@@ -7,7 +7,7 @@
 
 BTree::BTree(blockStorage::Storage<blockStorage::backend::File, BTreeNode, Superblock> &storage):
 	storage(storage),
-	nodeSize(64*1024),
+	nodeSize(1024*1024),
 	leafSize(4*1024)
 {
 };
