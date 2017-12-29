@@ -2,7 +2,7 @@ CXX?=g++
 LD=$(CXX)
 CFLAGS?=-c -O2 -Wall -Werror -I/usr/local/include -g
 
-LDFLAGS= -L/usr/local/lib
+LDFLAGS?=-L/usr/local/lib
 
 LIBS=-lssl -lcrypto
 
@@ -18,7 +18,7 @@ $(PROJECT): $(OBJS)
 	$(LD) $(LDFLAGS) $(OBJS) $(LIBS) -o "$(PROJECT)"
 
 .cpp.o:
-	$(CXX) $(CFLAGS) src/$*.cpp
+	$(CXX) -c $(CFLAGS) src/$*.cpp
 
 install: build
 	install "$(PROJECT)" "$(PREFIX)/bin"
